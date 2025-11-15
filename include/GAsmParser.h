@@ -38,6 +38,8 @@ public:
 //    std::string toAscii();
 //    std::uint64_t* zip();
 
+    static uint8_t base322Bytecode(uint8_t base32);
+
     static uint8_t* text2Bytecode(const std::string& text, size_t& length);
     static std::string bytecode2Text(const uint8_t* bytecode, size_t length);
     static uint8_t* base322Bytecode(const uint8_t* base32, size_t length);

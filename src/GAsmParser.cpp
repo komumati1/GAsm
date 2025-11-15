@@ -9,7 +9,7 @@
 #include <vector>
 #include <iostream>
 #include <cmath>
-#include "GAsmParser.h"
+#include "../include/GAsmParser.h"
 
 
 // initialize natural language to bytecode
@@ -354,4 +354,8 @@ GAsmParser::unzip(const uint64_t *zipped, size_t bytecode_length, size_t zipped_
         }
     }
     return bytecode;
+}
+
+uint8_t GAsmParser::base322Bytecode(const uint8_t base32) {
+    return GAsmParser::_base322Opcode[base32];
 }
