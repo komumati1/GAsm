@@ -10,17 +10,18 @@
 #include <random>
 #include <iostream>
 #include <thread>
+#include <cfloat>
 
 GAsm::GAsm() = default;
 
-GAsm::GAsm(const std::string &filename)
-{
+GAsm::GAsm(const std::string &filename) {
     using nlohmann::json;
     // Read file
-    auto size = std::filesystem::file_size(filename);
-    std::string content(size, '\0');
-    std::ifstream file(filename);
-    file.read(&content[0], (long long)size);
+    std::ifstream file(filename, std::ios::binary);
+    if (!file) throw std::runtime_error("Cannot open JSON file: " + filename);
+
+    std::string content((std::istreambuf_iterator<char>(file)),
+                        std::istreambuf_iterator<char>());
     file.close();
 
     json j = json::parse(content);
@@ -29,9 +30,10 @@ GAsm::GAsm(const std::string &filename)
     populationSize      = j["populationSize"];
     individualMaxSize   = j["individualMaxSize"];
     mutationProbability = j["mutationProbability"];
-    crossoverProbability = j["crossoverProbability"];
+    crossoverProbability= j["crossoverProbability"];
     tournamentSize      = j["tournamentSize"];
     maxGenerations      = j["maxGenerations"];
+    goalFitness         = j["goalFitness"];
 
     // Load inputs & targets
     inputs  = j["inputs"].get<std::vector<std::vector<double>>>();
@@ -41,27 +43,40 @@ GAsm::GAsm(const std::string &filename)
     _fitness = j["fitness"].get<std::vector<double>>();
     _rank    = j["rank"].get<std::vector<double>>();
 
+    // Load best individual
+    std::string ascii = j["bestIndividual"].get<std::string>();
+    size_t len = ascii.size();
+    uint8_t *bytecode = GAsmParser::ascii2Bytecode(ascii, len);
+    std::vector<uint8_t> individual(bytecode, bytecode + len);
+    delete[] bytecode;
+    bestIndividual = std::move(individual);
+
     // Deserialize population
     _population.clear();
     for (auto &ascii_value : j["population"])
     {
-        std::string ascii = ascii_value.get<std::string>();
+        ascii = ascii_value.get<std::string>();
 
-        size_t len = ascii.size();
-        uint8_t *bytecode = GAsmParser::ascii2Bytecode(ascii, len);
+        len = ascii.size();
+        bytecode = GAsmParser::ascii2Bytecode(ascii, len);
 
-        std::vector<uint8_t> individual(bytecode, bytecode + len);
+        individual = std::vector<uint8_t>(bytecode, bytecode + len);
         delete[] bytecode;
 
         _population.push_back(std::move(individual));
     }
+
+    // Load history
+    if (j.contains("history"))
+        hist = Hist(j["history"]);
+    else
+        hist = Hist();   // empty history
 }
 
 
 GAsm::~GAsm() = default;
 
-void GAsm::save2File(const std::string& filename)
-{
+void GAsm::save2File(const std::string& filename) {
     using nlohmann::json;
     json j;
 
@@ -72,16 +87,24 @@ void GAsm::save2File(const std::string& filename)
     j["crossoverProbability"] = crossoverProbability;
     j["tournamentSize"] = tournamentSize;
     j["maxGenerations"] = maxGenerations;
+    j["goalFitness"] = goalFitness;
 
     // Save inputs
     j["inputs"] = inputs;
     j["targets"] = targets;
 
+    // Save bestIndividual
+    std::string ascii = GAsmParser::bytecode2Ascii(
+            bestIndividual.data(),
+            bestIndividual.size()
+    );
+    j["bestIndividual"] = ascii;
+
     // Save population (as ASCII)
     j["population"] = json::array();
     for (const auto &individual : _population)
     {
-        std::string ascii = GAsmParser::bytecode2Ascii(
+        ascii = GAsmParser::bytecode2Ascii(
                 individual.data(),
                 individual.size()
         );
@@ -93,10 +116,65 @@ void GAsm::save2File(const std::string& filename)
     j["fitness"] = _fitness;
     j["rank"]    = _rank;
 
+    // Save history
+    j["history"] = hist.toJson();
+
     // Write to file
     std::ofstream f(filename);
     f << j.dump(4);   // pretty print
     f.close();
+}
+
+static void printHeader(const GAsm* const self) {
+    std::cout << "-- GAsm evolution --" << std::endl;
+    std::cout << "Seed: " << self->seed << std::endl;
+    std::cout << "Max individual size: " << self->individualMaxSize << std::endl;
+    std::cout << "Population size: " << self->populationSize << std::endl;
+    std::cout << "Crossover probability: " << self->crossoverProbability << std::endl;
+    std::cout << "Mutation probability: " << self->mutationProbability << std::endl;
+    std::cout << "Max generations:" << self->maxGenerations << std::endl;
+    std::cout << "Tournament size: " << self->tournamentSize << std::endl;
+    std::cout << "----------------------------------" << std::endl;
+}
+
+double GAsm::printGenerationStats(int generation) {
+    double avgFitness = 0.0;
+    double bestFitness = -DBL_MAX; // NOLINT
+    double avgSize = 0.0;
+    size_t bestIndividualIndex = 0;
+    for (int i = 0; i < _population.size(); i++) {
+        avgFitness += _fitness[i];
+        avgSize += (double)_population[i].size();
+        if (_fitness[i] > bestFitness) {
+            bestFitness = _fitness[i];
+            bestIndividualIndex = i;
+        }
+    }
+    avgFitness /= (double)_population.size();
+    avgSize /= (double)_population.size();
+    bestIndividual = _population[bestIndividualIndex];
+    hist.add(generation, bestFitness, avgFitness, avgSize, bestIndividual);
+    std::cout << "Generation: " << generation
+              << ", Avg Fitness: " << avgFitness
+              << ", Best Fitness: " << bestFitness
+              << ", Avg Size: " << avgSize << std::endl;
+    return bestFitness;
+}
+
+static void printTime(double elapsedSeconds) {
+    int minutes = (int)elapsedSeconds / 60;
+    int hours = minutes / 60;
+    elapsedSeconds -= minutes * 60;
+    minutes -= hours * 60;
+    if (hours != 0) std::cout << hours << "h ";
+    if (minutes != 0) {
+        std::cout << minutes << "m ";
+        std::cout << (int)elapsedSeconds << "s";
+    } else {
+        std::cout << std::fixed
+                  << std::setprecision(2)
+                  << elapsedSeconds << "s";
+    }
 }
 
 static void printProgressBar(int progressPercent, double elapsedSeconds) {
@@ -107,15 +185,15 @@ static void printProgressBar(int progressPercent, double elapsedSeconds) {
     for (int i = 0; i < filled; ++i) std::cout << "■";
     for (int i = filled; i < barWidth; ++i) std::cout << " ";
     std::cout << "] ";
-
-    std::cout << progressPercent << "%  "
-              << std::fixed << std::setprecision(2)
-              << elapsedSeconds << "s" << std::flush;
+    printTime(elapsedSeconds);
+    std::cout << std::flush;
 }
 
 void GAsm::evolve(const std::vector<std::vector<double>>& inputs,
                   const std::vector<std::vector<double>>& targets)
 {
+    using namespace std::chrono;
+    // TODO std::move inputs and targets
     this->inputs = inputs;
     this->targets = targets;
 
@@ -123,20 +201,27 @@ void GAsm::evolve(const std::vector<std::vector<double>>& inputs,
     _population.resize(populationSize);
     _fitness.resize(populationSize);
     _rank.resize(populationSize, 0.0);
+    for (auto& ind : _population) {
+        ind.reserve(individualMaxSize);
+    }
 
-    // Initialize population
-    for (size_t i = 0; i < populationSize; ++i) {
+    printHeader(this);
+
+    std::cout << "Initializing population" << std::endl;
+    auto initStart = high_resolution_clock::now();
+    for (size_t i = 0; i < populationSize; i++) {
+        int progress = ((int)i + 1) * 100 / (int) populationSize;
+        double elapsed = duration<double>(high_resolution_clock::now() - initStart).count();
+        printProgressBar(progress, elapsed);
         growFunction(this, _population[i]);
         _fitness[i] = fitnessFunction(this, _population[i]);
     }
-
-    std::cout << "Initial population generated: " << populationSize
-              << " individuals, max size " << individualMaxSize << std::endl;
+    std::cout << std::endl;
+    printGenerationStats(0);
 
     static thread_local std::mt19937 engine(std::random_device{}());
     std::uniform_real_distribution<double> dist(0, 1);
 
-    using namespace std::chrono;
     auto evolutionStart = high_resolution_clock::now();
 
     for (int generation = 0; generation < maxGenerations; generation++) {
@@ -159,14 +244,19 @@ void GAsm::evolve(const std::vector<std::vector<double>>& inputs,
             printProgressBar(progress, elapsed);
         }
         std::cout << std::endl;
+
+        double fitness = printGenerationStats(generation + 1);
+
+        // Early stopping
+        if (fitness > goalFitness) break;
     }
     double elapsed = duration<double>(high_resolution_clock::now() - evolutionStart).count();
-    std::cout << "Evolve finished took: "
-              << std::fixed << std::setprecision(2)
-              << elapsed << "s" << std::endl;
+    std::cout << "Evolution finished, took: ";
+    printTime(elapsed);
+    std::cout << std::endl;
 }
 
-void GAsm::fullGrow(GAsm *self, std::vector<uint8_t> &individual) {
+void GAsm::fullGrow(const GAsm *self, std::vector<uint8_t> &individual) {
     individual.clear();
 
     static thread_local std::mt19937 engine(std::random_device{}());
@@ -178,7 +268,7 @@ void GAsm::fullGrow(GAsm *self, std::vector<uint8_t> &individual) {
                   [&](){ return GAsmParser::base322Bytecode(dist(engine)); });
 }
 
-double GAsm::fitness(GAsm *self, const std::vector<uint8_t> &individual) {
+double GAsm::fitness(const GAsm *self, const std::vector<uint8_t> &individual) {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
     double score = 0.0;
     for (unsigned char i : individual) {
@@ -187,7 +277,7 @@ double GAsm::fitness(GAsm *self, const std::vector<uint8_t> &individual) {
     return score;
 }
 
-size_t GAsm::tournamentSelection(GAsm *self) {
+size_t GAsm::tournamentSelection(const GAsm *self) {
     static thread_local std::mt19937 rng(std::random_device{}());
     std::uniform_int_distribution<size_t> dist(0, self->_population.size() - 1);
 
@@ -201,7 +291,7 @@ size_t GAsm::tournamentSelection(GAsm *self) {
     return bestIndex;
 }
 
-size_t GAsm::negativeTournamentSelection(GAsm *self) {
+size_t GAsm::negativeTournamentSelection(const GAsm *self) {
     static thread_local std::mt19937 rng(std::random_device{}());
     std::uniform_int_distribution<size_t> dist(0, self->_population.size() - 1);
 
@@ -216,7 +306,7 @@ size_t GAsm::negativeTournamentSelection(GAsm *self) {
     return worstIndex;
 }
 
-void GAsm::dumbCrossover(GAsm *self, std::vector<uint8_t> &worstIndividual,
+void GAsm::dumbCrossover(const GAsm *self, std::vector<uint8_t> &worstIndividual,
                          const std::vector<uint8_t> &bestIndividual1,
                          const std::vector<uint8_t> &bestIndividual2) {
     if (bestIndividual1.empty() || bestIndividual2.empty()) return;
@@ -230,18 +320,18 @@ void GAsm::dumbCrossover(GAsm *self, std::vector<uint8_t> &worstIndividual,
 
     worstIndividual.insert(worstIndividual.begin(), bestIndividual1.begin(), bestIndividual1.begin() + crossPoint);
 
-    worstIndividual.insert(worstIndividual.begin() + crossPoint, bestIndividual2.begin() + crossPoint, bestIndividual2.end());
+    worstIndividual.insert(worstIndividual.end(), bestIndividual2.begin() + crossPoint, bestIndividual2.end());
 }
 
-void GAsm::dumbMutation(GAsm *self, std::vector<uint8_t> &worstIndividual,
-                        const std::vector<uint8_t> &bestIndividual) {
+void GAsm::dumbMutation(const GAsm *self, std::vector<uint8_t>& worstIndividual,
+                        const std::vector<uint8_t>& bestIndividual) {
     static thread_local std::mt19937 rng(std::random_device{}());
     std::uniform_real_distribution<double> probDist(0.0, 1.0);
     std::uniform_int_distribution<uint8_t> byteDist(0, 31); // assuming your bytecode range is 0-31
 
     worstIndividual = bestIndividual;
 
-    for (unsigned char & i : worstIndividual) {
+    for (unsigned char& i : worstIndividual) {
         if (probDist(rng) < self->mutationProbability) {
             i = GAsmParser::base322Bytecode(byteDist(rng)); // mutate this byte
         }

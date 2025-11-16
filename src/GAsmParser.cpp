@@ -40,18 +40,18 @@ const std::unordered_map<std::string, uint8_t> GAsmParser::_string2Opcode = {
         { "INC", 0x30 },
         { "DEC", 0x31 },
         { "RES", 0x32 },
+        { "SET", 0x33 },
 
-        { "LOP", 0x40 },
-        { "END", 0x41 },
+        { "LOP P", 0x40 },
+        { "LOP A", 0x41 },
 
         { "JMP I", 0x50 },
         { "JMP R", 0x51 },
         { "JMP P", 0x52 },
 
-        {"NOP", 0x60},
-        {"NO1", 0x61},
-        {"NO2", 0x62},
-        {"NO3", 0x63},
+        { "NOP", 0x60 },
+        { "END", 0x62 },
+        { "RNG", 0x63 },
 };
 
 // the rest of conversion initializers based on the natural language

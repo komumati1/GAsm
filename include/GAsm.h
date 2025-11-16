@@ -16,21 +16,30 @@ unsigned int operator ""_max_gen(unsigned long long int);
 #include <vector>
 #include <functional>
 #include <string>
+#include <cfloat>
+#include "Hist.h"
 
 class GAsm {
 private:
     std::vector<std::vector<uint8_t>> _population;
     std::vector<double> _fitness;
     std::vector<double> _rank;  // other parameter determining the quality of individual
+
+    double printGenerationStats(int gen);
 public:
+    int seed = -1;
     unsigned int populationSize = 100000;
     unsigned int individualMaxSize = 10000;
     double mutationProbability = 0.05;
     double crossoverProbability = 0.9;
     unsigned int tournamentSize = 2;
     unsigned int maxGenerations = 100;
+    double goalFitness = DBL_MAX;
+    Hist hist = Hist();
     std::vector<std::vector<double>> inputs;
     std::vector<std::vector<double>> targets;
+
+    std::vector<uint8_t> bestIndividual;
 
     GAsm();
     explicit GAsm(const std::string& filename);
@@ -45,19 +54,19 @@ public:
     void save2File(const std::string& filename);
 
     void evolve(const std::vector<std::vector<double>>& inputs, const std::vector<std::vector<double>>& targets);
-    std::function<void(GAsm* self, std::vector<uint8_t>& individual)> growFunction = fullGrow;
-    std::function<double(GAsm* self, const std::vector<uint8_t>& individual)> fitnessFunction = fitness;
-    std::function<size_t(GAsm* self)> selectionFunction = tournamentSelection;
-    std::function<size_t(GAsm* self)> negativeSelectionFunction = negativeTournamentSelection;
-    std::function<void(GAsm* self, std::vector<uint8_t>& worstIndividual, const std::vector<uint8_t>& bestIndividual1, const std::vector<uint8_t>& bestIndividual2)> crossoverFunction = dumbCrossover;
-    std::function<void(GAsm* self, std::vector<uint8_t>& worstIndividual, const std::vector<uint8_t>& bestIndividual)> mutationFunction = dumbMutation;
+    std::function<void(const GAsm* self, std::vector<uint8_t>& individual)> growFunction = fullGrow;
+    std::function<double(const GAsm* self, const std::vector<uint8_t>& individual)> fitnessFunction = fitness;
+    std::function<size_t(const GAsm* self)> selectionFunction = tournamentSelection;
+    std::function<size_t(const GAsm* self)> negativeSelectionFunction = negativeTournamentSelection;
+    std::function<void(const GAsm* self, std::vector<uint8_t>& worstIndividual, const std::vector<uint8_t>& bestIndividual1, const std::vector<uint8_t>& bestIndividual2)> crossoverFunction = dumbCrossover;
+    std::function<void(const GAsm* self, std::vector<uint8_t>& worstIndividual, const std::vector<uint8_t>& bestIndividual)> mutationFunction = dumbMutation;
 
-    static void fullGrow(GAsm* self, std::vector<uint8_t>& individual);
-    static double fitness(GAsm* self, const std::vector<uint8_t>& individual);
-    static size_t tournamentSelection(GAsm* self);
-    static size_t negativeTournamentSelection(GAsm* self);
-    static void dumbCrossover(GAsm* self, std::vector<uint8_t>& worstIndividual, const std::vector<uint8_t>& bestIndividual1, const std::vector<uint8_t>& bestIndividual2);
-    static void dumbMutation(GAsm* self, std::vector<uint8_t>& worstIndividual, const std::vector<uint8_t>& bestIndividual);
+    static void fullGrow(const GAsm* self, std::vector<uint8_t>& individual);
+    static double fitness(const GAsm* self, const std::vector<uint8_t>& individual);
+    static size_t tournamentSelection(const GAsm* self);
+    static size_t negativeTournamentSelection(const GAsm* self);
+    static void dumbCrossover(const GAsm* self, std::vector<uint8_t>& worstIndividual, const std::vector<uint8_t>& bestIndividual1, const std::vector<uint8_t>& bestIndividual2);
+    static void dumbMutation(const GAsm* self, std::vector<uint8_t>& worstIndividual, const std::vector<uint8_t>& bestIndividual);
 };
 
 

@@ -22,7 +22,11 @@ add_executable(GAsm
         src/GAsm.cpp
         include/GAsm.h
         src/GP.cpp
-        include/GP.h)
+        include/GP.h
+        src/Entry.cpp
+        include/Entry.h
+        src/Hist.cpp
+        include/Hist.h)
 
 target_link_libraries(GAsm PRIVATE nlohmann_json::nlohmann_json)
 

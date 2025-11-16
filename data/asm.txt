@@ -1,6 +1,6 @@
 MOv A, P //comment
-LOP
-lop
+LOP P
+lop   a
 
 mov         p,a  // you can add spaces
 movr,a  // or not add spaces
