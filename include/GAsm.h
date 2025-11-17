@@ -58,15 +58,25 @@ public:
     std::function<double(const GAsm* self, const std::vector<uint8_t>& individual)> fitnessFunction = fitness;
     std::function<size_t(const GAsm* self)> selectionFunction = tournamentSelection;
     std::function<size_t(const GAsm* self)> negativeSelectionFunction = negativeTournamentSelection;
-    std::function<void(const GAsm* self, std::vector<uint8_t>& worstIndividual, const std::vector<uint8_t>& bestIndividual1, const std::vector<uint8_t>& bestIndividual2)> crossoverFunction = dumbCrossover;
+    std::function<void(const GAsm* self, std::vector<uint8_t>& worstIndividual, const std::vector<uint8_t>& bestIndividual1, const std::vector<uint8_t>& bestIndividual2)> crossoverFunction = onePointCrossover;
     std::function<void(const GAsm* self, std::vector<uint8_t>& worstIndividual, const std::vector<uint8_t>& bestIndividual)> mutationFunction = dumbMutation;
 
     static void fullGrow(const GAsm* self, std::vector<uint8_t>& individual);
     static double fitness(const GAsm* self, const std::vector<uint8_t>& individual);
     static size_t tournamentSelection(const GAsm* self);
     static size_t negativeTournamentSelection(const GAsm* self);
-    static void dumbCrossover(const GAsm* self, std::vector<uint8_t>& worstIndividual, const std::vector<uint8_t>& bestIndividual1, const std::vector<uint8_t>& bestIndividual2);
+    static void onePointCrossover(const GAsm* self, std::vector<uint8_t>& worstIndividual, const std::vector<uint8_t>& bestIndividual1, const std::vector<uint8_t>& bestIndividual2);
     static void dumbMutation(const GAsm* self, std::vector<uint8_t>& worstIndividual, const std::vector<uint8_t>& bestIndividual);
+
+    static void
+    twoPointCrossover(const GAsm *self, std::vector<uint8_t> &worstIndividual,
+                      const std::vector<uint8_t> &bestIndividual1,
+                      const std::vector<uint8_t> &bestIndividual2);
+
+    static void
+    uniformCrossover(const GAsm *self, std::vector<uint8_t> &worstIndividual,
+                     const std::vector<uint8_t> &bestIndividual1,
+                     const std::vector<uint8_t> &bestIndividual2);
 };
 
 

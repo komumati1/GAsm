@@ -42,14 +42,14 @@ const std::unordered_map<std::string, uint8_t> GAsmParser::_string2Opcode = {
         { "RES", 0x32 },
         { "SET", 0x33 },
 
-        { "LOP P", 0x40 },
+        { "FOR", 0x40 },  // sets P = 0 to end of input
         { "LOP A", 0x41 },
+        { "LOP P", 0x41 },
 
         { "JMP I", 0x50 },
         { "JMP R", 0x51 },
         { "JMP P", 0x52 },
 
-        { "NOP", 0x60 },
         { "END", 0x62 },
         { "RNG", 0x63 },
 };

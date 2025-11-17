@@ -232,7 +232,7 @@ void GAsm::evolve(const std::vector<std::vector<double>>& inputs,
                 size_t bestIndex1 = tournamentSelection(this);
                 size_t bestIndex2 = tournamentSelection(this);
 
-                dumbCrossover(this, _population[worstIndex], _population[bestIndex1], _population[bestIndex2]);
+                onePointCrossover(this, _population[worstIndex], _population[bestIndex1], _population[bestIndex2]);
             } else {
                 size_t bestIndex = tournamentSelection(this);
                 dumbMutation(this, _population[worstIndex], _population[bestIndex]);
@@ -306,28 +306,93 @@ size_t GAsm::negativeTournamentSelection(const GAsm *self) {
     return worstIndex;
 }
 
-void GAsm::dumbCrossover(const GAsm *self, std::vector<uint8_t> &worstIndividual,
-                         const std::vector<uint8_t> &bestIndividual1,
-                         const std::vector<uint8_t> &bestIndividual2) {
+void GAsm::onePointCrossover(const GAsm *self, std::vector<uint8_t> &worstIndividual,
+                             const std::vector<uint8_t> &bestIndividual1,
+                             const std::vector<uint8_t> &bestIndividual2) {
     if (bestIndividual1.empty() || bestIndividual2.empty()) return;
 
+    size_t minSize = std::min(bestIndividual1.size(), bestIndividual2.size());
+
     static thread_local std::mt19937 rng(std::random_device{}());
-    std::uniform_int_distribution<size_t> dist(0, bestIndividual1.size() - 1);
+    std::uniform_int_distribution<size_t> dist(0, minSize - 1);
 
     int crossPoint = (int)dist(rng);
 
-    worstIndividual.clear();
+    worstIndividual.resize(bestIndividual2.size());
 
-    worstIndividual.insert(worstIndividual.begin(), bestIndividual1.begin(), bestIndividual1.begin() + crossPoint);
+    std::copy_n(bestIndividual1.data(), crossPoint, worstIndividual.data());
+    std::copy_n(bestIndividual2.data() + crossPoint, bestIndividual2.size() - crossPoint, worstIndividual.data() + crossPoint);
+// TODO maybe a bug report, cause it's some freaky shit with insert
+//    worstIndividual.clear()
+//    worstIndividual.insert(worstIndividual.begin(), bestIndividual1.begin(), bestIndividual1.end());
+//    worstIndividual.insert(worstIndividual.begin(), bestIndividual1.begin(), bestIndividual1.begin() + crossPoint);
 
-    worstIndividual.insert(worstIndividual.end(), bestIndividual2.begin() + crossPoint, bestIndividual2.end());
+//    worstIndividual.insert(worstIndividual.begin() + crossPoint, bestIndividual1.begin() + crossPoint, bestIndividual1.end());
+
+//    if (worstIndividual.size() != 10) {
+//        std::cout << bestIndividual1.size() << std::endl;
+//        std::cout << bestIndividual2.size() << std::endl;
+//        std::cout << crossPoint << std::endl;
+//        std::cout << worstIndividual.size() << std::endl;
+//    }
+}
+
+void GAsm::twoPointCrossover(const GAsm *self, std::vector<uint8_t> &worstIndividual,
+                             const std::vector<uint8_t> &bestIndividual1,
+                             const std::vector<uint8_t> &bestIndividual2) {
+    if (bestIndividual1.empty() || bestIndividual2.empty()) return;
+
+    size_t minSize = std::min(bestIndividual1.size(), bestIndividual2.size());
+
+    static thread_local std::mt19937 rng(std::random_device{}());
+    std::uniform_int_distribution<size_t> dist(0, minSize - 1);
+
+    int crossPoint1 = (int)dist(rng);
+    int crossPoint2;
+    do {
+        crossPoint2 = (int)dist(rng);
+    } while (crossPoint1 == crossPoint2);
+
+    if (crossPoint1 > crossPoint2) {
+        std::swap(crossPoint1, crossPoint2);
+    }
+
+    worstIndividual.resize(bestIndividual1.size());
+
+    std::copy_n(bestIndividual1.data(), crossPoint1, worstIndividual.data());
+    std::copy_n(bestIndividual2.data() + crossPoint1, crossPoint2 - crossPoint1, worstIndividual.data() + crossPoint1);
+    std::copy_n(bestIndividual1.data() + crossPoint2, bestIndividual2.size() - crossPoint2, worstIndividual.data() + crossPoint2);
+}
+
+void GAsm::uniformCrossover(const GAsm *self, std::vector<uint8_t> &worstIndividual,
+                             const std::vector<uint8_t> &bestIndividual1,
+                             const std::vector<uint8_t> &bestIndividual2) {
+    if (bestIndividual1.empty() || bestIndividual2.empty()) return;
+
+    const std::vector<uint8_t>& biggerIndividual = bestIndividual1.size() > bestIndividual2.size() ? bestIndividual1 : bestIndividual2;
+    const std::vector<uint8_t>& smallerIndividual = bestIndividual1.size() > bestIndividual2.size() ? bestIndividual2 : bestIndividual1;
+
+    static thread_local std::mt19937 rng(std::random_device{}());
+    std::uniform_int_distribution<size_t> dist(0, 1);
+
+    worstIndividual.resize(biggerIndividual.size());
+
+    for (int i = 0; i < smallerIndividual.size(); i++) {
+        if (dist(rng) == 1) {
+            // fuck push_back and other vector methods
+            worstIndividual[i] = smallerIndividual[i];
+        } else {
+            worstIndividual[i] = biggerIndividual[i];
+        }
+    }
+    std::copy_n(biggerIndividual.data() + smallerIndividual.size(), biggerIndividual.size() - smallerIndividual.size(), worstIndividual.data() + smallerIndividual.size());
 }
 
 void GAsm::dumbMutation(const GAsm *self, std::vector<uint8_t>& worstIndividual,
                         const std::vector<uint8_t>& bestIndividual) {
     static thread_local std::mt19937 rng(std::random_device{}());
     std::uniform_real_distribution<double> probDist(0.0, 1.0);
-    std::uniform_int_distribution<uint8_t> byteDist(0, 31); // assuming your bytecode range is 0-31
+    std::uniform_int_distribution<uint8_t> byteDist(0, 31); // bytecode range is 0-31
 
     worstIndividual = bestIndividual;
 

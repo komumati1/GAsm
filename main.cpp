@@ -10,8 +10,8 @@ void exampleParsingFile();
 int main() {
 //    exampleParsingRandom();
 //    exampleParsingFile();
-    exampleFromFile();
-//    exampleEvolution();
+//    exampleFromFile();
+    exampleEvolution();
     return 0;
 }
 
@@ -22,6 +22,7 @@ void exampleEvolution() {
     gasm.individualMaxSize = 10;
     auto inputs = std::vector<std::vector<double>>();
     auto targets = std::vector<std::vector<double>>();
+    gasm.crossoverFunction = GAsm::uniformCrossover;
     gasm.evolve(inputs, targets);
     gasm.save2File("../data/test.json");
 }
