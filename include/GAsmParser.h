@@ -22,6 +22,8 @@ private:
     static uint8_t* initOpcode2Base32();
     static uint8_t* initBase322Opcode();
 public:
+    static constexpr int instructionGroups = 7;
+
     explicit GAsmParser(const std::string& filename);
     GAsmParser(const uint8_t* bytecode, size_t length);
     GAsmParser(const GAsmParser& other);

@@ -22,7 +22,7 @@ void exampleEvolution() {
     gasm.individualMaxSize = 10;
     auto inputs = std::vector<std::vector<double>>();
     auto targets = std::vector<std::vector<double>>();
-    gasm.crossoverFunction = GAsm::uniformCrossover;
+    gasm.crossoverFunction = GAsm::onePointCrossover;
     gasm.evolve(inputs, targets);
     gasm.save2File("../data/test.json");
 }

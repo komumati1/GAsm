@@ -227,15 +227,15 @@ void GAsm::evolve(const std::vector<std::vector<double>>& inputs,
     for (int generation = 0; generation < maxGenerations; generation++) {
         auto genStart = high_resolution_clock::now();
         for (int i = 0; i < populationSize; i++) {
-            size_t worstIndex = negativeTournamentSelection(this);
+            size_t worstIndex = negativeSelectionFunction(this);
             if (dist(engine) < crossoverProbability) {
-                size_t bestIndex1 = tournamentSelection(this);
-                size_t bestIndex2 = tournamentSelection(this);
+                size_t bestIndex1 = selectionFunction(this);
+                size_t bestIndex2 = selectionFunction(this);
 
-                onePointCrossover(this, _population[worstIndex], _population[bestIndex1], _population[bestIndex2]);
+                crossoverFunction(this, _population[worstIndex], _population[bestIndex1], _population[bestIndex2]);
             } else {
-                size_t bestIndex = tournamentSelection(this);
-                dumbMutation(this, _population[worstIndex], _population[bestIndex]);
+                size_t bestIndex = selectionFunction(this);
+                mutationFunction(this, _population[worstIndex], _population[bestIndex]);
             }
 
             _fitness[worstIndex] = fitnessFunction(this, _population[worstIndex]);
@@ -322,19 +322,6 @@ void GAsm::onePointCrossover(const GAsm *self, std::vector<uint8_t> &worstIndivi
 
     std::copy_n(bestIndividual1.data(), crossPoint, worstIndividual.data());
     std::copy_n(bestIndividual2.data() + crossPoint, bestIndividual2.size() - crossPoint, worstIndividual.data() + crossPoint);
-// TODO maybe a bug report, cause it's some freaky shit with insert
-//    worstIndividual.clear()
-//    worstIndividual.insert(worstIndividual.begin(), bestIndividual1.begin(), bestIndividual1.end());
-//    worstIndividual.insert(worstIndividual.begin(), bestIndividual1.begin(), bestIndividual1.begin() + crossPoint);
-
-//    worstIndividual.insert(worstIndividual.begin() + crossPoint, bestIndividual1.begin() + crossPoint, bestIndividual1.end());
-
-//    if (worstIndividual.size() != 10) {
-//        std::cout << bestIndividual1.size() << std::endl;
-//        std::cout << bestIndividual2.size() << std::endl;
-//        std::cout << crossPoint << std::endl;
-//        std::cout << worstIndividual.size() << std::endl;
-//    }
 }
 
 void GAsm::twoPointCrossover(const GAsm *self, std::vector<uint8_t> &worstIndividual,
@@ -388,7 +375,7 @@ void GAsm::uniformCrossover(const GAsm *self, std::vector<uint8_t> &worstIndivid
     std::copy_n(biggerIndividual.data() + smallerIndividual.size(), biggerIndividual.size() - smallerIndividual.size(), worstIndividual.data() + smallerIndividual.size());
 }
 
-void GAsm::dumbMutation(const GAsm *self, std::vector<uint8_t>& worstIndividual,
+void GAsm::hardMutation(const GAsm *self, std::vector<uint8_t>& worstIndividual,
                         const std::vector<uint8_t>& bestIndividual) {
     static thread_local std::mt19937 rng(std::random_device{}());
     std::uniform_real_distribution<double> probDist(0.0, 1.0);
@@ -403,3 +390,28 @@ void GAsm::dumbMutation(const GAsm *self, std::vector<uint8_t>& worstIndividual,
     }
 }
 
+void GAsm::softMutation(const GAsm *self, std::vector<uint8_t>& worstIndividual,
+                        const std::vector<uint8_t>& bestIndividual) {
+    static thread_local std::mt19937 rng(std::random_device{}());
+    std::uniform_real_distribution<double> probDist(0.0, 1.0);
+
+    // TODO do it dynamically based on GAsmParser::_string2Opcode
+    static const std::uniform_int_distribution<uint8_t> dists[GAsmParser::instructionGroups] = {
+            std::uniform_int_distribution<uint8_t>(0, 6),
+            std::uniform_int_distribution<uint8_t>(0, 7),
+            std::uniform_int_distribution<uint8_t>(0, 7),
+            std::uniform_int_distribution<uint8_t>(0, 4),
+            std::uniform_int_distribution<uint8_t>(0, 3),
+            std::uniform_int_distribution<uint8_t>(0, 3),
+            std::uniform_int_distribution<uint8_t>(0, 2),
+    };
+
+    worstIndividual = bestIndividual;
+
+    for (unsigned char& i : worstIndividual) {
+        if (probDist(rng) < self->mutationProbability) {
+            auto dist = dists[i >> 4];
+            i = dist(rng) | (i & 0b11110000); // mutate the end of this byte
+        }
+    }
+}
