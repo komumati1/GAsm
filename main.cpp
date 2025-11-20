@@ -10,8 +10,8 @@ void exampleParsingFile();
 int main() {
 //    exampleParsingRandom();
 //    exampleParsingFile();
-//    exampleFromFile();
     exampleEvolution();
+    exampleFromFile();
     return 0;
 }
 

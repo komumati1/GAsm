@@ -27,7 +27,7 @@ private:
 
     double printGenerationStats(int gen);
 public:
-    int seed = -1;
+    int seed = 42;
     unsigned int populationSize = 100000;
     unsigned int individualMaxSize = 10000;
     double mutationProbability = 0.05;
@@ -54,7 +54,7 @@ public:
     void save2File(const std::string& filename);
 
     void evolve(const std::vector<std::vector<double>>& inputs, const std::vector<std::vector<double>>& targets);
-    std::function<void(const GAsm* self, std::vector<uint8_t>& individual)> growFunction = fullGrow;
+    std::function<void(const GAsm* self, std::vector<uint8_t>& individual)> growFunction = treeGrow;
     std::function<double(const GAsm* self, const std::vector<uint8_t>& individual)> fitnessFunction = fitness;
     std::function<size_t(const GAsm* self)> selectionFunction = tournamentSelection;
     std::function<size_t(const GAsm* self)> negativeSelectionFunction = negativeTournamentSelection;
@@ -80,6 +80,13 @@ public:
 
     static void
     softMutation(const GAsm *self, std::vector<uint8_t> &worstIndividual, const std::vector<uint8_t> &bestIndividual);
+
+    static void treeGrow(const GAsm* self, std::vector<uint8_t>& individual);
+
+    static int grow(std::vector<uint8_t>& individual, int maxSize, int position, int depth);
+    static std::vector<uint8_t> normalOps;
+    static std::vector<uint8_t> structuralOps;
+    static uint8_t END_OP;
 };
 
 

@@ -415,3 +415,83 @@ void GAsm::softMutation(const GAsm *self, std::vector<uint8_t>& worstIndividual,
         }
     }
 }
+
+// FIXME działałoby jakby język był normalny
+
+std::vector<uint8_t> GAsm::normalOps = {
+    0x00,0x01,0x02,0x03,0x04,0x05,
+    0x10,0x11,0x12,0x13,0x14,0x15,0x16,
+    0x20,0x21,0x22,0x23,0x24,0x25,0x26,
+    0x30,0x31,0x32,0x33,
+    0x63, // RNG
+};
+
+std::vector<uint8_t> GAsm::structuralOps = {
+    0x40, // FOR
+    0x41, // LOP A
+    0x42, // LOP P
+    0x50, // JMP I
+    0x51, // JMP R
+    0x52, // JMP P
+};
+
+uint8_t GAsm::END_OP = 0x62;
+
+void GAsm::treeGrow(const GAsm* self, std::vector<uint8_t>& individual) {
+
+    individual.clear();
+    individual.resize(self->individualMaxSize);
+
+    // FIXME na razie tutaj ustawiane bo nie chciałem mieszać w kodzie wyżej gdzie się wywołuje metodę
+    int depth = 3;
+    int used = grow(individual, self->individualMaxSize, 0, depth);
+    individual.resize(used);  // nie działa jak się to da bo instrukacja 0x00 to MOV - co za debil to wymyślił
+}
+
+int GAsm::grow(std::vector<uint8_t> &individual, int maxSize, int position, int depth) {
+    if (position >= maxSize)
+        return -1;
+
+    bool forceStructural = (position == 0);
+    bool mustbeLeaf = (depth == 0);
+
+    static thread_local std::mt19937 engine(std::random_device{}());
+    std::uniform_int_distribution<int> dist(0, 3);
+    bool chooseStructural = (dist(engine) == 0);
+
+    // FIXME chuja działa
+    // double p = 0.45 * (double(depth) / 10.0);      // startDepth
+    // std::bernoulli_distribution chooseStructure(p);
+    // bool chooseStructural = chooseStructure(engine);
+
+    if ((chooseStructural && !mustbeLeaf) || forceStructural) {
+        // wybieramy FOR / LOP A / LOP P / JMP ...
+        std::uniform_int_distribution<int> pickDistr(0, GAsm::structuralOps.size() - 1);
+        uint8_t op = ( GAsm::structuralOps[pickDistr(engine)]);
+
+        individual[position] = op;
+        int cursor = position + 1;
+
+        std::uniform_int_distribution<int> childCountDist(1, 4);
+        int childCount = childCountDist(engine);
+
+        for (int i = 0; i < childCount; i++) {
+
+            if (cursor + 1 >= maxSize) {
+                break;
+            }
+
+            int next = grow(individual, maxSize, cursor, depth - 1);
+            if (next < 0) return -1;
+            cursor = next;
+        }
+        // END – zamyka KAŻDY rodzaj bloku
+        individual[cursor] = GAsm::END_OP;
+        return cursor + 1;
+    }
+
+    // zwykla instrukcja
+    std::uniform_int_distribution<int> nd(0, GAsm::normalOps.size() - 1);
+    individual[position] = GAsm::normalOps[nd(engine)];
+    return position + 1;
+}
