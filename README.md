@@ -5,11 +5,13 @@ Its purpose is to represent programs as compact sequences of single-byte opcodes
 
 Registers:
 - A – Accumulator - hold float values, used in float operations
-- P – Pointer - integer values, used in accessing P element of at array
+- P – Pointer - integer values, used in accessing P element of at array, Pointer is taken modulo size of the array.
 - R – Register array - float array for variables
 - I – Input array - float array for inputs and outputs
 
+
 Each instruction is encoded as a single byte.
+Comments are denoted by //.
 
 # Instruction Set
 
@@ -17,7 +19,7 @@ Each instruction is encoded as a single byte.
 
 | Instruction | Opcode | Description    | C equivalent                             |
 | ----------- | ------ | -----------------|------------------------- |
-| MOV P, A    | 0x00   | Copy accumulator A into program pointer P. | P = A |
+| MOV P, A    | 0x00   | Copy accumulator A into program pointer P. A is rounded to the whole number. | P = A |
 | MOV A, P    | 0x01   | Load accumulator A with program pointer P. | A = P |
 | MOV A, R    | 0x02   | Load accumulator A with register R\[P].        | A = R\[P]|
 | MOV A, I    | 0x03   | Load accumulator A with input value I\[P].     | A = I\[P] |
@@ -86,33 +88,33 @@ Each instruction is encoded as a single byte.
 ## Example code
 
 ```
-MOV A, I        // A = I[0]
-MOV R, A        // R = n (will reuse R later)
-
+// I is empty, but it's length is the length of desired fibbonacci sequence
 // Initialize Fibonacci base values
 RES             // P = 0 (fib0)
 MOV A, P        // A = P = 0
-MOV R, A        // R0 = A = 0
+MOV I, A        // I0 = A = 0
 INC             // P++, P = 1
 MOV A, P        // A = 1 (fib1)
+MOV I, A        // I1 = A = 1
 
-// Prepare loop counter
-MOV P, I        // P = n
+// main loop
+FOR             // P = 0
+MOV A, I        // A = I[P] = 0
+INC             // P++, P = 1
+ADD I           // A += I[P], A = 0 + 1 = 1
+INC             // P++, P = 2
+MOV I, A        // I[P] = A = 1
+END             // P = 1 (next value after 0), until P < input_length
 
-// LOOP START
-FOR             // repeat loop P times
-
-    ADD R       // A = A + R   (next Fibonacci number)
-
-    // Swap A and R:
-    SUB R       // A = A - R  -> A = old A (before ADD)
-    MOV R, A    // R = old A
-
-    // A already holds the new Fibonacci value
-
-LOP P           // continue loop until P == 0
-
-// A now contains fib(n)
-END
+// the for loop destroyed the first 2 values of the sequence
+// beacuse the last 2 value went over the input_length so the looped
+// to the beginning of the input
+// this recovers the first 2 numbers in the sequence
+RES             // P = 0 (fib0)
+MOV A, P        // A = P = 0
+MOV I, A        // I0 = A = 0
+INC             // P++, P = 1
+MOV A, P        // A = 1 (fib1)
+MOV I, A        // I1 = A = 1
 
 ```
