@@ -11,20 +11,22 @@ int main() {
 //    exampleParsingRandom();
 //    exampleParsingFile();
     exampleEvolution();
-    exampleFromFile();
+//    exampleFromFile();
     return 0;
 }
 
 void exampleEvolution() {
     auto gasm = GAsm();
-    gasm.maxGenerations = 10;
+    gasm.maxGenerations = 0;
     gasm.populationSize = 100;
-    gasm.individualMaxSize = 10;
+    gasm.individualMaxSize = 20;
     auto inputs = std::vector<std::vector<double>>();
     auto targets = std::vector<std::vector<double>>();
     gasm.crossoverFunction = GAsm::onePointCrossover;
+    gasm.growFunction = GAsm::treeGrow;
     gasm.evolve(inputs, targets);
     gasm.save2File("../data/test.json");
+    std::cout << GAsmParser::bytecode2Text(gasm.bestIndividual.data(), gasm.bestIndividual.size()) << std::endl;
 }
 
 void exampleFromFile() {
