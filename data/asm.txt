@@ -1,9 +1,0 @@
-MOv A, P //comment
-LOP P
-lop   a
-For
-
-mov         p,a  // you can add spaces
-movr,a  // or not add spaces
-MOV r,  a
-

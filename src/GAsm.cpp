@@ -31,7 +31,6 @@ GAsm::GAsm(const std::string &filename) {
     individualMaxSize   = j["individualMaxSize"];
     mutationProbability = j["mutationProbability"];
     crossoverProbability= j["crossoverProbability"];
-    tournamentSize      = j["tournamentSize"];
     maxGenerations      = j["maxGenerations"];
     goalFitness         = j["goalFitness"];
 
@@ -85,7 +84,6 @@ void GAsm::save2File(const std::string& filename) {
     j["individualMaxSize"] = individualMaxSize;
     j["mutationProbability"] = mutationProbability;
     j["crossoverProbability"] = crossoverProbability;
-    j["tournamentSize"] = tournamentSize;
     j["maxGenerations"] = maxGenerations;
     j["goalFitness"] = goalFitness;
 
@@ -127,13 +125,11 @@ void GAsm::save2File(const std::string& filename) {
 
 static void printHeader(const GAsm* const self) {
     std::cout << "-- GAsm evolution --" << std::endl;
-    std::cout << "Seed: " << self->seed << std::endl;
     std::cout << "Max individual size: " << self->individualMaxSize << std::endl;
     std::cout << "Population size: " << self->populationSize << std::endl;
     std::cout << "Crossover probability: " << self->crossoverProbability << std::endl;
     std::cout << "Mutation probability: " << self->mutationProbability << std::endl;
     std::cout << "Max generations:" << self->maxGenerations << std::endl;
-    std::cout << "Tournament size: " << self->tournamentSize << std::endl;
     std::cout << "----------------------------------" << std::endl;
 }
 
@@ -193,7 +189,7 @@ void GAsm::evolve(const std::vector<std::vector<double>>& inputs,
                   const std::vector<std::vector<double>>& targets)
 {
     using namespace std::chrono;
-    // TODO std::move inputs and targets
+
     this->inputs = inputs;
     this->targets = targets;
 
@@ -213,8 +209,8 @@ void GAsm::evolve(const std::vector<std::vector<double>>& inputs,
         int progress = ((int)i + 1) * 100 / (int) populationSize;
         double elapsed = duration<double>(high_resolution_clock::now() - initStart).count();
         printProgressBar(progress, elapsed);
-        growFunction(this, _population[i]);
-        _fitness[i] = fitnessFunction(this, _population[i]);
+        (*growFunction)(this, _population[i]);
+        _fitness[i] = (*fitnessFunction)(this, _population[i]);
     }
     std::cout << std::endl;
     printGenerationStats(0);
@@ -227,18 +223,20 @@ void GAsm::evolve(const std::vector<std::vector<double>>& inputs,
     for (int generation = 0; generation < maxGenerations; generation++) {
         auto genStart = high_resolution_clock::now();
         for (int i = 0; i < populationSize; i++) {
-            size_t worstIndex = negativeSelectionFunction(this);
+            selectionFunction->selectBest = false;
+            size_t worstIndex = (*selectionFunction)(this);
+            selectionFunction->selectBest = true;
             if (dist(engine) < crossoverProbability) {
-                size_t bestIndex1 = selectionFunction(this);
-                size_t bestIndex2 = selectionFunction(this);
+                size_t bestIndex1 = (*selectionFunction)(this);
+                size_t bestIndex2 = (*selectionFunction)(this);
 
-                crossoverFunction(this, _population[worstIndex], _population[bestIndex1], _population[bestIndex2]);
+                (*crossoverFunction)(this, _population[worstIndex], _population[bestIndex1], _population[bestIndex2]);
             } else {
-                size_t bestIndex = selectionFunction(this);
-                mutationFunction(this, _population[worstIndex], _population[bestIndex]);
+                size_t bestIndex = (*selectionFunction)(this);
+                (*mutationFunction)(this, _population[worstIndex], _population[bestIndex]);
             }
 
-            _fitness[worstIndex] = fitnessFunction(this, _population[worstIndex]);
+            _fitness[worstIndex] = (*fitnessFunction)(this, _population[worstIndex]);
             int progress = (i + 1) * 100 / (int) populationSize;
             double elapsed = duration<double>(high_resolution_clock::now() - genStart).count();
             printProgressBar(progress, elapsed);
@@ -256,235 +254,14 @@ void GAsm::evolve(const std::vector<std::vector<double>>& inputs,
     std::cout << std::endl;
 }
 
-void GAsm::fullGrow(const GAsm *self, std::vector<uint8_t> &individual) {
-    individual.clear();
-
-    static thread_local std::mt19937 engine(std::random_device{}());
-    std::uniform_int_distribution<uint8_t> dist(0, 31);
-
-    individual.resize(self->individualMaxSize);
-    std::generate(individual.begin(),
-                  individual.end(),
-                  [&](){ return GAsmParser::base322Bytecode(dist(engine)); });
+const std::vector<std::vector<uint8_t>> &GAsm::getPopulation() const {
+    return _population;
 }
 
-double GAsm::fitness(const GAsm *self, const std::vector<uint8_t> &individual) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    double score = 0.0;
-    for (unsigned char i : individual) {
-        if (i == 0x00) score++;
-    }
-    return score;
+const std::vector<double> &GAsm::getFitness() const {
+    return _fitness;
 }
 
-size_t GAsm::tournamentSelection(const GAsm *self) {
-    static thread_local std::mt19937 rng(std::random_device{}());
-    std::uniform_int_distribution<size_t> dist(0, self->_population.size() - 1);
-
-    size_t bestIndex = dist(rng);
-    for (unsigned int i = 1; i < self->tournamentSize; i++) {
-        size_t idx = dist(rng);
-        if (self->_fitness[idx] > self->_fitness[bestIndex]) {
-            bestIndex = idx;
-        }
-    }
-    return bestIndex;
-}
-
-size_t GAsm::negativeTournamentSelection(const GAsm *self) {
-    static thread_local std::mt19937 rng(std::random_device{}());
-    std::uniform_int_distribution<size_t> dist(0, self->_population.size() - 1);
-
-    size_t worstIndex = dist(rng);
-    for (unsigned int i = 1; i < self->tournamentSize; i++) {
-        size_t idx = dist(rng);
-        if (self->_fitness[idx] < self->_fitness[worstIndex]) {
-            worstIndex = idx;
-        }
-    }
-
-    return worstIndex;
-}
-
-void GAsm::onePointCrossover(const GAsm *self, std::vector<uint8_t> &worstIndividual,
-                             const std::vector<uint8_t> &bestIndividual1,
-                             const std::vector<uint8_t> &bestIndividual2) {
-    if (bestIndividual1.empty() || bestIndividual2.empty()) return;
-
-    size_t minSize = std::min(bestIndividual1.size(), bestIndividual2.size());
-
-    static thread_local std::mt19937 rng(std::random_device{}());
-    std::uniform_int_distribution<size_t> dist(0, minSize - 1);
-
-    int crossPoint = (int)dist(rng);
-
-    worstIndividual.resize(bestIndividual2.size());
-
-    std::copy_n(bestIndividual1.data(), crossPoint, worstIndividual.data());
-    std::copy_n(bestIndividual2.data() + crossPoint, bestIndividual2.size() - crossPoint, worstIndividual.data() + crossPoint);
-}
-
-void GAsm::twoPointCrossover(const GAsm *self, std::vector<uint8_t> &worstIndividual,
-                             const std::vector<uint8_t> &bestIndividual1,
-                             const std::vector<uint8_t> &bestIndividual2) {
-    if (bestIndividual1.empty() || bestIndividual2.empty()) return;
-
-    size_t minSize = std::min(bestIndividual1.size(), bestIndividual2.size());
-
-    static thread_local std::mt19937 rng(std::random_device{}());
-    std::uniform_int_distribution<size_t> dist(0, minSize - 1);
-
-    int crossPoint1 = (int)dist(rng);
-    int crossPoint2;
-    do {
-        crossPoint2 = (int)dist(rng);
-    } while (crossPoint1 == crossPoint2);
-
-    if (crossPoint1 > crossPoint2) {
-        std::swap(crossPoint1, crossPoint2);
-    }
-
-    worstIndividual.resize(bestIndividual1.size());
-
-    std::copy_n(bestIndividual1.data(), crossPoint1, worstIndividual.data());
-    std::copy_n(bestIndividual2.data() + crossPoint1, crossPoint2 - crossPoint1, worstIndividual.data() + crossPoint1);
-    std::copy_n(bestIndividual1.data() + crossPoint2, bestIndividual2.size() - crossPoint2, worstIndividual.data() + crossPoint2);
-}
-
-void GAsm::uniformCrossover(const GAsm *self, std::vector<uint8_t> &worstIndividual,
-                             const std::vector<uint8_t> &bestIndividual1,
-                             const std::vector<uint8_t> &bestIndividual2) {
-    if (bestIndividual1.empty() || bestIndividual2.empty()) return;
-
-    const std::vector<uint8_t>& biggerIndividual = bestIndividual1.size() > bestIndividual2.size() ? bestIndividual1 : bestIndividual2;
-    const std::vector<uint8_t>& smallerIndividual = bestIndividual1.size() > bestIndividual2.size() ? bestIndividual2 : bestIndividual1;
-
-    static thread_local std::mt19937 rng(std::random_device{}());
-    std::uniform_int_distribution<size_t> dist(0, 1);
-
-    worstIndividual.resize(biggerIndividual.size());
-
-    for (int i = 0; i < smallerIndividual.size(); i++) {
-        if (dist(rng) == 1) {
-            // fuck push_back and other vector methods
-            worstIndividual[i] = smallerIndividual[i];
-        } else {
-            worstIndividual[i] = biggerIndividual[i];
-        }
-    }
-    std::copy_n(biggerIndividual.data() + smallerIndividual.size(), biggerIndividual.size() - smallerIndividual.size(), worstIndividual.data() + smallerIndividual.size());
-}
-
-void GAsm::hardMutation(const GAsm *self, std::vector<uint8_t>& worstIndividual,
-                        const std::vector<uint8_t>& bestIndividual) {
-    static thread_local std::mt19937 rng(std::random_device{}());
-    std::uniform_real_distribution<double> probDist(0.0, 1.0);
-    std::uniform_int_distribution<uint8_t> byteDist(0, 31); // bytecode range is 0-31
-
-    worstIndividual = bestIndividual;
-
-    for (unsigned char& i : worstIndividual) {
-        if (probDist(rng) < self->mutationProbability) {
-            i = GAsmParser::base322Bytecode(byteDist(rng)); // mutate this byte
-        }
-    }
-}
-
-void GAsm::softMutation(const GAsm *self, std::vector<uint8_t>& worstIndividual,
-                        const std::vector<uint8_t>& bestIndividual) {
-    static thread_local std::mt19937 rng(std::random_device{}());
-    std::uniform_real_distribution<double> probDist(0.0, 1.0);
-
-    // TODO do it dynamically based on GAsmParser::_string2Opcode
-    static const std::uniform_int_distribution<uint8_t> dists[GAsmParser::instructionGroups] = {
-            std::uniform_int_distribution<uint8_t>(0, 6),
-            std::uniform_int_distribution<uint8_t>(0, 7),
-            std::uniform_int_distribution<uint8_t>(0, 7),
-            std::uniform_int_distribution<uint8_t>(0, 4),
-            std::uniform_int_distribution<uint8_t>(0, 3),
-            std::uniform_int_distribution<uint8_t>(0, 3),
-            std::uniform_int_distribution<uint8_t>(0, 2),
-    };
-
-    worstIndividual = bestIndividual;
-
-    for (unsigned char& i : worstIndividual) {
-        if (probDist(rng) < self->mutationProbability) {
-            auto dist = dists[i >> 4];
-            i = dist(rng) | (i & 0b11110000); // mutate the end of this byte
-        }
-    }
-}
-
-// FIXME działałoby jakby język był normalny
-
-std::vector<uint8_t> GAsm::normalOps = {
-    0x00,0x01,0x02,0x03,0x04,0x05,
-    0x10,0x11,0x12,0x13,0x14,0x15,0x16,
-    0x20,0x21,0x22,0x23,0x24,0x25,0x26,
-    0x30,0x31,0x32,0x33,
-    0x63, // RNG
-};
-
-std::vector<uint8_t> GAsm::structuralOps = {
-    0x40, // FOR
-    0x41, // LOP A
-    0x42, // LOP P
-    0x50, // JMP I
-    0x51, // JMP R
-    0x52, // JMP P
-};
-
-uint8_t GAsm::END_OP = 0x62;
-
-void GAsm::treeGrow(const GAsm* self, std::vector<uint8_t>& individual) {
-
-    individual.clear();
-    individual.reserve(self->individualMaxSize);
-
-    int depth = 3;
-    grow(individual, self->individualMaxSize, depth);
-}
-
-void GAsm::grow(std::vector<uint8_t>& individual, size_t maxSize, int depth) {
-    bool forceStructural = individual.empty();
-    bool mustBeLeaf = (depth == 0);
-    // 10 instructions - inna niż 10 też może być
-    // tree -> 10 instructions
-    // continue another 10 instructions
-
-    static thread_local std::mt19937 engine(std::random_device{}());
-    std::uniform_int_distribution<int> dist(0, 3);
-    bool chooseStructural = (dist(engine) == 0);
-
-    // TODO
-    // double p = 0.45 * (double(depth) / 10.0);      // startDepth
-    // std::bernoulli_distribution chooseStructure(p);
-    // bool chooseStructural = chooseStructure(engine);
-
-    if ((chooseStructural && !mustBeLeaf) || forceStructural) {
-        // wybieramy FOR / LOP A / LOP P / JMP ...
-        std::uniform_int_distribution<int> pickDistr(0, (int)GAsm::structuralOps.size() - 1);
-        uint8_t op = ( GAsm::structuralOps[pickDistr(engine)]);
-
-        individual.push_back(op);
-
-        std::uniform_int_distribution<int> childCountDist(1, 4);
-        int childCount = childCountDist(engine);
-
-        for (int i = 0; i < childCount; i++) {
-
-            if (individual.size() + 1 >= maxSize) {
-                break;
-            } else {
-                grow(individual, maxSize, depth - 1);
-            }
-        }
-        // END – zamyka KAŻDY rodzaj bloku
-        individual.push_back(GAsm::END_OP);
-    }
-
-    // zwykla instrukcja
-    std::uniform_int_distribution<int> nd(0, (int)GAsm::normalOps.size() - 1);
-    individual.push_back(GAsm::normalOps[nd(engine)]);
+const std::vector<double> &GAsm::getRank() const {
+    return _rank;
 }

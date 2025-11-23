@@ -1,0 +1,19 @@
+// input is length 1 and contains which fibbonacci number we want
+// input must be larger than 1
+// registers are at least length 2
+// P and A start with 0
+MOV R, A // R0 = 0
+INC      // P++, P = 1
+MOV A, P // A = P = 1
+MOV R, A // R1 = A = 1
+LOP A    // while (A <= I), i is length one so the P does not matter
+    DEC
+    MOV A, R // retrieve previous value
+    INC
+    ADD R    // add next value
+    INC
+    MOV R, A // save next value
+    MOV A, P // move count in P to A for loop to work
+END
+MOV A, R
+MOV I, A // move last number to input (output)

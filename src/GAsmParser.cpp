@@ -14,44 +14,44 @@
 
 // initialize natural language to bytecode
 const std::unordered_map<std::string, uint8_t> GAsmParser::_string2Opcode = {
-        { "MOV P, A", 0x00 },
-        { "MOV A, P", 0x01 },
-        { "MOV A, R", 0x02 },
-        { "MOV A, I", 0x03 },
-        { "MOV R, A", 0x04 },
-        { "MOV I, A", 0x05 },
+        { "MOV P, A", MOV_P_A },
+        { "MOV A, P", MOV_A_P },
+        { "MOV A, R", MOV_A_R },
+        { "MOV A, I", MOV_A_I },
+        { "MOV R, A", MOV_R_A },
+        { "MOV I, A", MOV_I_A },
 
-        { "ADD R", 0x10 },
-        { "SUB R", 0x11 },
-        { "DIV R", 0x12 },
-        { "MUL R", 0x13 },
-        { "SIN R", 0x14 },
-        { "COS R", 0x15 },
-        { "EXP R", 0x16 },
+        { "ADD R", ADD_R },
+        { "SUB R", SUB_R },
+        { "DIV R", DIV_R },
+        { "MUL R", MUL_R },
+        { "SIN R", SIN_R },
+        { "COS R", COS_R },
+        { "EXP R", EXP_R },
 
-        { "ADD I", 0x20 },
-        { "SUB I", 0x21 },
-        { "DIV I", 0x22 },
-        { "MUL I", 0x23 },
-        { "SIN I", 0x24 },
-        { "COS I", 0x25 },
-        { "EXP I", 0x26 },
+        { "ADD I", ADD_I },
+        { "SUB I", SUB_I },
+        { "DIV I", DIV_I },
+        { "MUL I", MUL_I },
+        { "SIN I", SIN_I },
+        { "COS I", COS_I },
+        { "EXP I", EXP_I },
 
-        { "INC", 0x30 },
-        { "DEC", 0x31 },
-        { "RES", 0x32 },
-        { "SET", 0x33 },
+        { "INC", INC },
+        { "DEC", DEC },
+        { "RES", RES },
+        { "SET", SET },
         // loops
-        { "FOR", 0x40 },  // sets P = 0 end steps until the end of input
-        { "LOP A", 0x41 },
-        { "LOP P", 0x42 },
+        { "FOR", FOR },  // sets P = 0 end steps until the end of input
+        { "LOP A", LOP_A },
+        { "LOP P", LOP_P },
         // if
-        { "JMP I", 0x50 },
-        { "JMP R", 0x51 },
-        { "JMP P", 0x52 },
+        { "JMP I", JMP_I },
+        { "JMP R", JMP_R },
+        { "JMP P", JMP_P },
         // random
-        { "END", 0x62 },
-        { "RNG", 0x63 },
+        { "END", END },
+        { "RNG", RNG },
 };
 
 // the rest of conversion initializers based on the natural language
