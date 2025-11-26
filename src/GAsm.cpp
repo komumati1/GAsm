@@ -12,9 +12,11 @@
 #include <thread>
 #include <cfloat>
 
-GAsm::GAsm() = default;
+GAsm::GAsm() : _p(std::vector<uint8_t>(0)), _runner(_p, 1) { // TODO dirty fix
+    _runner.setRegisterLength(_registerLength);
+}
 
-GAsm::GAsm(const std::string &filename) {
+GAsm::GAsm(const std::string &filename) : _p(std::vector<uint8_t>(0)), _runner(_p, 1) { // TODO dirty fix
     using nlohmann::json;
     // Read file
     std::ifstream file(filename, std::ios::binary);
@@ -33,6 +35,8 @@ GAsm::GAsm(const std::string &filename) {
     crossoverProbability= j["crossoverProbability"];
     maxGenerations      = j["maxGenerations"];
     goalFitness         = j["goalFitness"];
+    _registerLength      = j["registerLength"];
+    maxProcessTime      = j["maxProcessTime"];
 
     // Load inputs & targets
     inputs  = j["inputs"].get<std::vector<std::vector<double>>>();
@@ -70,6 +74,9 @@ GAsm::GAsm(const std::string &filename) {
         hist = Hist(j["history"]);
     else
         hist = Hist();   // empty history
+
+    // Set runner
+    _runner.setRegisterLength(_registerLength);
 }
 
 
@@ -86,6 +93,8 @@ void GAsm::save2File(const std::string& filename) {
     j["crossoverProbability"] = crossoverProbability;
     j["maxGenerations"] = maxGenerations;
     j["goalFitness"] = goalFitness;
+    j["registerLength"] = _registerLength;
+    j["maxProcessTime"] = maxProcessTime;
 
     // Save inputs
     j["inputs"] = inputs;
@@ -135,13 +144,13 @@ static void printHeader(const GAsm* const self) {
 
 double GAsm::printGenerationStats(int generation) {
     double avgFitness = 0.0;
-    double bestFitness = -DBL_MAX; // NOLINT
+    double bestFitness = minimize ? DBL_MAX: -DBL_MAX; // NOLINT
     double avgSize = 0.0;
     size_t bestIndividualIndex = 0;
     for (int i = 0; i < _population.size(); i++) {
-        avgFitness += _fitness[i];
+        avgFitness += _isnan(_fitness[i]) ? 0 : _fitness[i];
         avgSize += (double)_population[i].size();
-        if (_fitness[i] > bestFitness) {
+        if (minimize ? _fitness[i] < bestFitness : _fitness[i] > bestFitness) {
             bestFitness = _fitness[i];
             bestIndividualIndex = i;
         }
@@ -185,13 +194,13 @@ static void printProgressBar(int progressPercent, double elapsedSeconds) {
     std::cout << std::flush;
 }
 
-void GAsm::evolve(const std::vector<std::vector<double>>& inputs,
-                  const std::vector<std::vector<double>>& targets)
+void GAsm::evolve(const std::vector<std::vector<double>>& inputs_,
+                  const std::vector<std::vector<double>>& targets_)
 {
     using namespace std::chrono;
 
-    this->inputs = inputs;
-    this->targets = targets;
+    this->inputs = inputs_;
+    this->targets = targets_;
 
     // Resize population and fitness
     _population.resize(populationSize);
@@ -210,7 +219,8 @@ void GAsm::evolve(const std::vector<std::vector<double>>& inputs,
         double elapsed = duration<double>(high_resolution_clock::now() - initStart).count();
         printProgressBar(progress, elapsed);
         (*growFunction)(this, _population[i]);
-        _fitness[i] = (*fitnessFunction)(this, _population[i]);
+//        std::cout << std::endl << GAsmParser::bytecode2Text(_population[i].data(), _population[i].size()) << std::endl;
+        _fitness[i] = (*fitnessFunction)(this, _population[i], i);
     }
     std::cout << std::endl;
     printGenerationStats(0);
@@ -223,9 +233,9 @@ void GAsm::evolve(const std::vector<std::vector<double>>& inputs,
     for (int generation = 0; generation < maxGenerations; generation++) {
         auto genStart = high_resolution_clock::now();
         for (int i = 0; i < populationSize; i++) {
-            selectionFunction->selectBest = false;
+            selectionFunction->selectMinimal = !minimize; // worst is not minimized
             size_t worstIndex = (*selectionFunction)(this);
-            selectionFunction->selectBest = true;
+            selectionFunction->selectMinimal = minimize;  // best is minimized
             if (dist(engine) < crossoverProbability) {
                 size_t bestIndex1 = (*selectionFunction)(this);
                 size_t bestIndex2 = (*selectionFunction)(this);
@@ -236,7 +246,7 @@ void GAsm::evolve(const std::vector<std::vector<double>>& inputs,
                 (*mutationFunction)(this, _population[worstIndex], _population[bestIndex]);
             }
 
-            _fitness[worstIndex] = (*fitnessFunction)(this, _population[worstIndex]);
+            _fitness[worstIndex] = (*fitnessFunction)(this, _population[worstIndex], worstIndex);
             int progress = (i + 1) * 100 / (int) populationSize;
             double elapsed = duration<double>(high_resolution_clock::now() - genStart).count();
             printProgressBar(progress, elapsed);
@@ -246,7 +256,11 @@ void GAsm::evolve(const std::vector<std::vector<double>>& inputs,
         double fitness = printGenerationStats(generation + 1);
 
         // Early stopping
-        if (fitness > goalFitness) break;
+        if (minimize) {
+            if (fitness <= goalFitness) break;
+        } else {
+            if (fitness >= goalFitness) break;
+        }
     }
     double elapsed = duration<double>(high_resolution_clock::now() - evolutionStart).count();
     std::cout << "Evolution finished, took: ";
@@ -264,4 +278,13 @@ const std::vector<double> &GAsm::getFitness() const {
 
 const std::vector<double> &GAsm::getRank() const {
     return _rank;
+}
+
+void GAsm::setProgram(std::vector<uint8_t>& program) {
+    _runner.useCompile = useCompile;
+    _runner.setProgram(program);
+}
+
+size_t GAsm::run(std::vector<double> &inputs_) {
+    return _runner.run(inputs_, maxProcessTime);
 }

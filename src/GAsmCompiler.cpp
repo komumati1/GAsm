@@ -6,13 +6,15 @@
 #include "GAsmInterpreter.h"
 #include "GAsmParser.h"
 
-run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
+run_fn_t GAsmInterpreter::compile() {
     using namespace Xbyak::util;
 
     struct Jit : Xbyak::CodeGenerator {
         // 4096 default program size
         // (void*) 1 - auto grow buffer
-        Jit() : Xbyak::CodeGenerator(1, Xbyak::AutoGrow) {}
+        Jit() : Xbyak::CodeGenerator(1, Xbyak::AutoGrow) {
+
+        }
     };
 
     auto code = std::make_unique<Jit>();
@@ -20,6 +22,7 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
     auto endLabelStack = std::vector<Xbyak::Label>();
     auto startLabelStack = std::vector<Xbyak::Label>();
     auto instructionStack = std::vector<uint8_t>();
+    size_t stackSize = 0;
 
     // Important! don't use for constants:
     // rax - used in division and general operations
@@ -38,28 +41,34 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
     #define PI r12
     // r13 -> saved P % registerLength (size_t)
     #define PR r13
-    // QWORD PTR [rbp - 8] -> constants function<double()>
-    #define constants qword[rbp - 8]
-    // QWORD PTR [rbp - 16] -> rng function<double()>
-    #define rng qword[rbp - 16]
+    // QWORD PTR [rbp - 40] -> constants function<double()>
+    #define constants qword[rbp - 40]
+    // QWORD PTR [rbp - 48] -> rng function<double()>
+    #define rng qword[rbp - 48]
     // rrbx -> P (size_t)
     #define P rbx
     // r13 -> saved inputs pointer (double*)
     #define inputs r14
-    // QWORD PTR [rbp - 24] -> saved input length (size_t)
-    #define inputLength qword[rbp - 24]
+    // QWORD PTR [rbp - 56] -> saved input length (size_t)
+    #define inputLength qword[rbp - 56]
     // r14 -> saved registers pointer (double*)
     #define registers r15
-    // QWORD PTR [rbp - 32] -> saved registers length (size_t)
-    #define registerLength qword[rbp - 32]
-    // QWORD PTR [rbp - 40] -> process time (size_t)
-    #define processTime qword[rbp - 40]
-    // QWORD PTR [rbp - 48] -> stack size for saved P used in for loop (size_t)
-    #define stackSize qword[rbp - 48]
+    // QWORD PTR [rbp - 64] -> saved registers length (size_t)
+    #define registerLength qword[rbp - 64]
+    // QWORD PTR [rbp - 72] -> process time (size_t)
+    #define processTime qword[rbp - 72]
+    // QWORD PTR [rbp - 80] -> max process time
+    #define maxProcessTime qword[rbp - 80]
+    // dynamicStackSize -> the program could end in a for loop
+    // so we have to keep track of the stack size
+    // to later pop the correct amount
+    #define dynamicStackSize qword[rbp - 88]
     // xmm0 -> A (accumulator) (double)
     #define A xmm0
-    // WARNING!!! CHANGE LOCAL STACK SIZE IF NEEDED
-    #define LOCALS 48
+    // we push 5 registers, so the stack starts at 40
+    // then we have variables till 88,
+    // but we add 8 to keep the stack aligned to 16 bytes
+    #define LOCALS 96
     //
     // Registers free to use in the program
     // xmm1-15 - for floating numbers
@@ -70,10 +79,6 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
     code->push(rbp);
     // create new stack pointer
     code->mov(rbp, rsp);
-    // FIXME TESTS
-//    code->mov(rax, r9); //rdi = 0, rsi, rdx = 1, rcx = inputs, r8 = registers, r9 = 2 (size of registers)
-//    code->pop(rbp);
-//    code->ret();
 
     // save caller's rbx, r12-r15, which we'll use
     // this changes the stack we have to be careful
@@ -88,7 +93,6 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
     code->sub(rsp, LOCALS); // reserve stack of locals
 
     // move function arguments to appropriate registers
-    // LINUX FIXME
 #ifdef __unix__
     code->mov(inputs, rdi);
     code->mov(inputLength, rsi);
@@ -96,15 +100,19 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
     code->mov(registerLength, rcx);
     code->mov(constants, r8);  // constants
     code->mov(rng, r9);        // rng;
-#elifdef VOS__WINDOWS16
+    code->mov(rax, qword[rbp + 8]);
+    code->mov(maxProcessTime, rax); // max process time;
+#elifdef _WIN64
     code->mov(inputs, rcx);
     code->mov(inputLength, rdx);
     code->mov(registers, r8);
     code->mov(registerLength, r9);
-    code->mov(rax, qword[rsp + 40]);
-    code->mov(constants, rax);  // constants
-    code->mov(rax, qword[rsp + 48]);
-    code->mov(rng, rax);        // rng;
+    code->mov(rax, qword[rbp + 48]);
+    code->mov(constants, rax);      // constants
+    code->mov(rax, qword[rbp + 56]);
+    code->mov(rng, rax);            // rng;
+    code->mov(rax, qword[rbp + 64]);
+    code->mov(maxProcessTime, rax); // max process time;
 #endif
 
     // reset P, PI, PR, A and processTime
@@ -113,14 +121,20 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
     code->xor_(PI, PI);          // PI = 0
     code->xor_(PR, PR);          // PR = 0
     code->mov(processTime, 0); // processTime = 0;
-    code->mov(stackSize, 0);   // stackSize = 0;
+    code->mov(dynamicStackSize, 0); // dynamicStackSize = 0;
 
     // prepare end program label
     Xbyak::Label endProgram;
-    // TODO labels are incorrect
+    // TODO remove stackSize and just track it locally TEST
+    // TODO add maxProcessTime as a parameter to function TEST
+    // TODO validate jump conditions
+    // TODO simple optimization
+    // TODO reuse registers and lea
+    // TODO check process time every 10 instructions and on loops
+    // TODO T_FAR is not supported, but T_NEAR works for long jumps XD
     // --- COMPILATION ---
-    for (int i = 0; i < program.size(); i++) {
-        const uint8_t& opcode = program[i];
+    for (int i = 0; i < _program.size(); i++) {
+        const uint8_t& opcode = _program[i];
 
         switch (opcode) {
             case MOV_P_A: {
@@ -226,13 +240,29 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
                 code->movsd(A, ptr[registers + PR * 8]); // assign from pointer to A
                 // WARNING!!! ONLY ODD NUMBER OF VARIABLES CAN BE ON THE STACK
                 code->push(P);           // save the P register, we'll use it
-                code->mov(P, stackSize); // mov stackSize to P
-                code->and_(P, 1);        // check the parity (only the last bit)
-                code->shl(P, 3);         // multiply by 8
-                // P has not 8 if stackSize is odd and 0 if it's even
-                code->sub(rsp, P);       // align the stack 16 bytes
-                code->call((void*)sin);  // call sin(xmm0), sin(A)
-                code->add(rsp, P);       // restore the stack, xmm0 = A = sin(A)
+                if (stackSize % 2 == 0) {
+#ifdef _WIN64
+                    code->sub(rsp, 32);  // windows shadow space
+#endif
+                    code->mov(rax, (size_t) sin);
+                    code->call(rax);     // call sin(xmm0), sin(A)
+#ifdef _WIN64
+                    code->add(rsp, 32);
+#endif
+                } else {
+#ifdef _WIN64
+                    code->sub(rsp, 40);  // windows shadow space and stack alignment
+#else
+                    code->sub(rsp, 8);   // stack alignment
+#endif
+                    code->mov(rax, (size_t) sin);
+                    code->call(rax);  // call sin(xmm0), sin(A)
+#ifdef _WIN64
+                    code->add(rsp, 40);
+#else
+                    code->sub(rsp, 8);
+#endif
+                }
 
                 code->pop(P); // restore the P register
                 break;
@@ -242,13 +272,29 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
                 code->movsd(A, ptr[registers + PR * 8]); // assign from pointer to A
                 // WARNING!!! ONLY ODD NUMBER OF VARIABLES CAN BE ON THE STACK
                 code->push(P);           // save the P register, we'll use it
-                code->mov(P, stackSize); // mov stackSize to P
-                code->and_(P, 1);        // check the parity (only the last bit)
-                code->shl(P, 3);         // multiply by 8
-                // P has not 8 if stackSize is odd and 0 if it's even
-                code->sub(rsp, P);       // align the stack 16 bytes
-                code->call((void*)cos);  // call cos(xmm0), cos(A)
-                code->add(rsp, P);       // restore the stack, xmm0 = A = cos(A)
+                if (stackSize % 2 == 0) {
+#ifdef _WIN64
+                    code->sub(rsp, 32);  // windows shadow space
+#endif
+                    code->mov(rax, (size_t) cos);
+                    code->call(rax);     // call cos(xmm0), cos(A)
+#ifdef _WIN64
+                    code->add(rsp, 32);
+#endif
+                } else {
+#ifdef _WIN64
+                    code->sub(rsp, 40);  // windows shadow space and stack alignment
+#else
+                    code->sub(rsp, 8);   // stack alignment
+#endif
+                    code->mov(rax, (size_t) cos);
+                    code->call(rax);     // call cos(xmm0), cos(A)
+#ifdef _WIN64
+                    code->add(rsp, 40);
+#else
+                    code->sub(rsp, 8);
+#endif
+                }
 
                 code->pop(P); // restore the P register
                 break;
@@ -258,13 +304,29 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
                 code->movsd(A, ptr[registers + PR * 8]); // assign from pointer to A
                 // WARNING!!! ONLY ODD NUMBER OF VARIABLES CAN BE ON THE STACK
                 code->push(P);           // save the P register, we'll use it
-                code->mov(P, stackSize); // mov stackSize to P
-                code->and_(P, 1);        // check the parity (only the last bit)
-                code->shl(P, 3);         // multiply by 8
-                // P has not 8 if stackSize is odd and 0 if it's even
-                code->sub(rsp, P);       // align the stack 16 bytes
-                code->call((void*)exp);  // call exp(xmm0), exp(A)
-                code->add(rsp, P);       // restore the stack, xmm0 = A = exp(A)
+                if (stackSize % 2 == 0) {
+#ifdef _WIN64
+                    code->sub(rsp, 32);  // windows shadow space
+#endif
+                    code->mov(rax, (size_t)exp);
+                    code->call(rax);     // call exp(xmm0), exp(A
+#ifdef _WIN64
+                    code->add(rsp, 32);
+#endif
+                } else {
+#ifdef _WIN64
+                    code->sub(rsp, 40);  // windows shadow space and stack alignment
+#else
+                    code->sub(rsp, 8);   // stack alignment
+#endif
+                    code->mov(rax, (size_t)exp);
+                    code->call(rax);     // call exp(xmm0), exp(A
+#ifdef _WIN64
+                    code->add(rsp, 40);
+#else
+                    code->sub(rsp, 8);
+#endif
+                }
 
                 code->pop(P); // restore the P register
                 break;
@@ -294,13 +356,29 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
                 code->movsd(A, ptr[inputs + PI * 8]); // assign from pointer to A
                 // WARNING!!! ONLY ODD NUMBER OF VARIABLES CAN BE ON THE STACK
                 code->push(P);           // save the P register, we'll use it
-                code->mov(P, stackSize); // mov stackSize to P
-                code->and_(P, 1);        // check the parity (only the last bit)
-                code->shl(P, 3);         // multiply by 8
-                // P has not 8 if stackSize is odd and 0 if it's even
-                code->sub(rsp, P);       // align the stack 16 bytes
-                code->call((void*)sin);  // call sin(xmm0), sin(A)
-                code->add(rsp, P);       // restore the stack, xmm0 = A = sin(A)
+                if (stackSize % 2 == 0) {
+#ifdef _WIN64
+                    code->sub(rsp, 32);  // windows shadow space
+#endif
+                    code->mov(rax, (size_t) sin);
+                    code->call(rax);     // call sin(xmm0), sin(A)
+#ifdef _WIN64
+                    code->add(rsp, 32);
+#endif
+                } else {
+#ifdef _WIN64
+                    code->sub(rsp, 40);  // windows shadow space and stack alignment
+#else
+                    code->sub(rsp, 8);   // stack alignment
+#endif
+                    code->mov(rax, (size_t) sin);
+                    code->call(rax);  // call sin(xmm0), sin(A)
+#ifdef _WIN64
+                    code->add(rsp, 40);
+#else
+                    code->sub(rsp, 8);
+#endif
+                }
 
                 code->pop(P); // restore the P register
                 break;
@@ -310,13 +388,29 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
                 code->movsd(A, ptr[inputs + PI * 8]); // assign from pointer to A
                 // WARNING!!! ONLY ODD NUMBER OF VARIABLES CAN BE ON THE STACK
                 code->push(P);           // save the P register, we'll use it
-                code->mov(P, stackSize); // mov stackSize to P
-                code->and_(P, 1);        // check the parity (only the last bit)
-                code->shl(P, 3);         // multiply by 8
-                // P has not 8 if stackSize is odd and 0 if it's even
-                code->sub(rsp, P);       // align the stack 16 bytes
-                code->call((void*)cos);  // call cos(xmm0), cos(A)
-                code->add(rsp, P);       // restore the stack, xmm0 = A = cos(A)
+                if (stackSize % 2 == 0) {
+#ifdef _WIN64
+                    code->sub(rsp, 32);  // windows shadow space
+#endif
+                    code->mov(rax, (size_t) cos);
+                    code->call(rax);     // call cos(xmm0), cos(A)
+#ifdef _WIN64
+                    code->add(rsp, 32);
+#endif
+                } else {
+#ifdef _WIN64
+                    code->sub(rsp, 40);  // windows shadow space and stack alignment
+#else
+                    code->sub(rsp, 8);   // stack alignment
+#endif
+                    code->mov(rax, (size_t) cos);
+                    code->call(rax);     // call cos(xmm0), cos(A)
+#ifdef _WIN64
+                    code->add(rsp, 40);
+#else
+                    code->sub(rsp, 8);
+#endif
+                }
 
                 code->pop(P); // restore the P register
                 break;
@@ -326,13 +420,29 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
                 code->movsd(A, ptr[inputs + PI * 8]); // assign from pointer to A
                 // WARNING!!! ONLY ODD NUMBER OF VARIABLES CAN BE ON THE STACK
                 code->push(P);           // save the P register, we'll use it
-                code->mov(P, stackSize); // mov stackSize to P
-                code->and_(P, 1);        // check the parity (only the last bit)
-                code->shl(P, 3);         // multiply by 8
-                // P has not 8 if stackSize is odd and 0 if it's even
-                code->sub(rsp, P);       // align the stack 16 bytes
-                code->call((void*)exp);  // call exp(xmm0), exp(A)
-                code->add(rsp, P);       // restore the stack, xmm0 = A = exp(A)
+                if (stackSize % 2 == 0) {
+#ifdef _WIN64
+                    code->sub(rsp, 32);  // windows shadow space
+#endif
+                    code->mov(rax, (size_t)exp);
+                    code->call(rax);     // call exp(xmm0), exp(A
+#ifdef _WIN64
+                    code->add(rsp, 32);
+#endif
+                } else {
+#ifdef _WIN64
+                    code->sub(rsp, 40);  // windows shadow space and stack alignment
+#else
+                    code->sub(rsp, 8);   // stack alignment
+#endif
+                    code->mov(rax, (size_t) exp);
+                    code->call(rax);     // call exp(xmm0), exp(A
+#ifdef _WIN64
+                    code->add(rsp, 40);
+#else
+                    code->sub(rsp, 8);
+#endif
+                }
 
                 code->pop(P); // restore the P register
                 break;
@@ -377,13 +487,29 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
                 // A = _constants[_counter++ % _constantsLength];
                 // WARNING!!! ONLY ODD NUMBER OF VARIABLES CAN BE ON THE STACK
                 code->push(P);           // save the P register, we'll use it
-                code->mov(P, stackSize); // mov stackSize to P
-                code->and_(P, 1);        // check the parity (only the last bit)
-                code->shl(P, 3);         // multiply by 8
-                // P has not 8 if stackSize is odd and 0 if it's even
-                code->sub(rsp, P);       // align the stack 16 bytes
-                code->call(constants);   // call constants
-                code->add(rsp, P);       // restore the stack, xmm0 = A = constants()
+                if (stackSize % 2 == 0) {
+#ifdef _WIN64
+                    code->sub(rsp, 32);  // windows shadow space
+#endif
+                    code->mov(rax, constants);
+                    code->call(rax);     // call constants
+#ifdef _WIN64
+                    code->add(rsp, 32);
+#endif
+                } else {
+#ifdef _WIN64
+                    code->sub(rsp, 40);  // windows shadow space and stack alignment
+#else
+                    code->sub(rsp, 8);   // stack alignment
+#endif
+                    code->mov(rax, constants);
+                    code->call(rax);     // call constants
+#ifdef _WIN64
+                    code->add(rsp, 40);
+#else
+                    code->sub(rsp, 8);
+#endif
+                }
 
                 code->pop(P); // restore the P register
                 break;
@@ -396,13 +522,14 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
                 startLabelStack.push_back(start); // create start label
                 // prepare the for loop
                 code->push(P);           // save P to stack
-                code->add(stackSize, 1); // increment stack size
+                stackSize++;             // increment stack size
+                code->add(dynamicStackSize, 1);
                 code->xor_(P, P);        // P = 0
                 // we assume the inputLength is >= 1
                 // that means the for loop will execute al least once
                 // we don't have to check the condition the first time
                 // loop start
-                code->L(startLabelStack.back()); // FIXME maybe label to nop?
+                code->L(startLabelStack.back());
                 break;
             }
             case LOP_A: {
@@ -412,9 +539,9 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
                 Xbyak::Label start;
                 startLabelStack.push_back(start);  // create start label
                 // condition is at the end
-                code->jmp(endLabelStack.back(), Jit::T_NEAR); // jump to the end TODO fix long jump
+                code->jmp(endLabelStack.back(), Jit::T_NEAR); // long jump to the end
                 // loop start
-                code->L(startLabelStack.back()); // FIXME maybe label to nop?
+                code->L(startLabelStack.back());
                 break;
             }
             case LOP_P: {
@@ -424,9 +551,9 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
                 Xbyak::Label start;
                 startLabelStack.push_back(start);  // create start label
                 // condition is at the end
-                code->jmp(endLabelStack.back()); // jump to the end
+                code->jmp(endLabelStack.back(), Jit::T_NEAR); // long jump to the end
                 // loop start
-                code->L(startLabelStack.back()); // FIXME maybe label to nop?
+                code->L(startLabelStack.back());
                 break;
             }
             case JMP_I: {
@@ -435,7 +562,7 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
                 endLabelStack.push_back(end);    // create end label
                 code->movsd(xmm1, ptr[inputs + PI*8]); // xmm1 = I[P % length]
                 code->comisd(A, xmm1);           // compare A and xmm1
-                code->jnb(endLabelStack.back()); // jump if A >= xmm1
+                code->jnb(endLabelStack.back(), Jit::T_NEAR); // long jump if A >= xmm1
                 break;
             }
             case JMP_R: {
@@ -444,7 +571,7 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
                 endLabelStack.push_back(end);    // create end label
                 code->movsd(xmm1, ptr[registers + PR*8]); // xmm1 = R[P % length]
                 code->comisd(A, xmm1);           // compare A and xmm1
-                code->jnb(endLabelStack.back()); // jump if A >= xmm1
+                code->jnb(endLabelStack.back(), Jit::T_NEAR); // long jump if A >= xmm1
                 break;
             }
             case JMP_P: {
@@ -453,7 +580,7 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
                 endLabelStack.push_back(end);    // create end label
                 code->cvtsi2sd(xmm1, P);         // xmm1 = (double) P
                 code->comisd(xmm1, A);           // compare xmm1 and A
-                code->jnb(endLabelStack.back()); // jump if xmm1 >= A
+                code->jnb(endLabelStack.back(), Jit::T_NEAR); // long jump if xmm1 >= A
                 break;
             }
             case END: {
@@ -464,10 +591,11 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
                             code->L(endLabelStack.back()); // bind the end label
                             code->add(P, 1);               // increment P
                             code->cmp(P, inputLength);     // compare with length
-                            code->jnge(startLabelStack.back()); // jump if P < length
+                            code->jnge(startLabelStack.back(), Jit::T_NEAR); // long jump if P < length
                             // end loop
                             code->pop(P);            // restore P
-                            code->sub(stackSize, 1); // decrement stack size
+                            stackSize--;             // decrement stack size
+                            code->sub(dynamicStackSize, 1);
                             // pop all the stacks
                             instructionStack.pop_back();
                             endLabelStack.pop_back();
@@ -478,7 +606,7 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
                             code->L(endLabelStack.back());     // bind the end label
                             code->movsd(xmm1, ptr[inputs + PI*8]); // xmm1 = I[P % length]
                             code->comisd(A, xmm1);             // compare A and xmm1
-                            code->jnle(startLabelStack.back(), Jit::T_NEAR); // jump if A <= xmm1 // TODO long jump //TOO validate jump conditions
+                            code->jnle(startLabelStack.back(), Jit::T_NEAR); // long jump if A <= xmm1
                             // end loop, pop all the stacks
                             instructionStack.pop_back();
                             endLabelStack.pop_back();
@@ -489,7 +617,7 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
                             code->L(endLabelStack.back());     // bind the end label
                             code->mov(rax, P);                 // save P to rax
                             code->cmp(rax, inputLength);       // compare P and input length
-                            code->jng(startLabelStack.back()); // jump if P <= inputLength
+                            code->jng(startLabelStack.back(), Jit::T_NEAR); // long jump if P <= inputLength
                             // end loop, pop all the stacks
                             instructionStack.pop_back();
                             endLabelStack.pop_back();
@@ -511,13 +639,29 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
                 // A = rng();
                 // WARNING!!! ONLY ODD NUMBER OF VARIABLES CAN BE ON THE STACK
                 code->push(P);           // save the P register, we'll use it
-                code->mov(P, stackSize); // mov stackSize to P
-                code->and_(P, 1);        // check the parity (only the last bit)
-                code->shl(P, 3);         // multiply by 8
-                // P has not 8 if stackSize is odd and 0 if it's even
-                code->sub(rsp, P);       // align the stack 16 bytes
-                code->call(constants);   // call constants
-                code->add(rsp, P);       // restore the stack, xmm0 = A = rng()
+                if (stackSize % 2 == 0) {
+#ifdef _WIN64
+                    code->sub(rsp, 32);  // windows shadow space
+#endif
+                    code->mov(rax, rng);
+                    code->call(rax);     // call rng
+#ifdef _WIN64
+                    code->add(rsp, 32);
+#endif
+                } else {
+#ifdef _WIN64
+                    code->sub(rsp, 40);  // windows shadow space and stack alignment
+#else
+                    code->sub(rsp, 8);   // stack alignment
+#endif
+                    code->mov(rax, rng);
+                    code->call(rax);     // call rng
+#ifdef _WIN64
+                    code->add(rsp, 40);
+#else
+                    code->sub(rsp, 8);
+#endif
+                }
 
                 code->pop(P); // restore the P register
             }
@@ -529,20 +673,21 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
         code->mov(rax, processTime); // make a copy in rax
         code->add(rax, 1);           // add 1
         code->mov(processTime, rax); // save to process time
-        code->cmp(rax, this->_maxProcessTime);
-        code->ja(endProgram, Jit::T_NEAR); // TODO set better jumps, diff from long and short
+        code->cmp(rax, maxProcessTime);
+        code->ja(endProgram, Jit::T_NEAR); // long jump to end
     }
     // put unused labels at the end
-    if (!endLabelStack.empty()) {
+    while (!endLabelStack.empty()) {
         switch (instructionStack.back()) {
             case FOR: {
                 code->L(endLabelStack.back()); // bind the end label
                 code->add(P, 1);               // increment P
                 code->cmp(P, inputLength);     // compare with length
-                code->jnge(startLabelStack.back()); // jump if P < length
+                code->jnge(startLabelStack.back(), Jit::T_NEAR); // long jump if P < length
                 // end loop
                 code->pop(P);            // restore P
-                code->sub(stackSize, 1); // decrement stack size
+                stackSize--;             // decrement stack size
+                code->sub(dynamicStackSize, 1);
                 // pop all the stacks
                 instructionStack.pop_back();
                 endLabelStack.pop_back();
@@ -553,7 +698,7 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
                 code->L(endLabelStack.back());     // bind the end label
                 code->movsd(xmm1, ptr[inputs + PI*8]); // xmm1 = I[P % length]
                 code->comisd(A, xmm1);             // compare A and xmm1
-                code->jng(startLabelStack.back()); // jump if A <= xmm1
+                code->jnle(startLabelStack.back(), Jit::T_NEAR); // long jump if A <= xmm1
                 // end loop, pop all the stacks
                 instructionStack.pop_back();
                 endLabelStack.pop_back();
@@ -564,7 +709,7 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
                 code->L(endLabelStack.back());     // bind the end label
                 code->mov(rax, P);                 // save P to rax
                 code->cmp(rax, inputLength);       // compare P and input length
-                code->jng(startLabelStack.back()); // jump if P <= inputLength
+                code->jng(startLabelStack.back(), Jit::T_NEAR); // long jump if P <= inputLength
                 // end loop, pop all the stacks
                 instructionStack.pop_back();
                 endLabelStack.pop_back();
@@ -582,6 +727,9 @@ run_fn_t GAsmInterpreter::compile(const std::vector<uint8_t>& program) {
     }
     // end of the program
     code->L(endProgram);
+    code->mov(rax, dynamicStackSize); // prepare for stack restoration
+    code->shl(rax, 3);                // * 8, move stack by 8 for every push
+    code->add(rsp, rax);              // pop from stack
     code->mov(rax, processTime); // return process time
     code->add(rsp, LOCALS); // restore stack of locals
     // restore the caller's stack

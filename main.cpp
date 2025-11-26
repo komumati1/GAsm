@@ -1,8 +1,11 @@
 #include <iostream>
+#include <ntdef.h>
+#include <profileapi.h>
 #include "include/GAsmParser.h"
 #include "include/GAsm.h"
 #include "GAsmInterpreter.h"
 #include "include/jit_moves.h"
+#include "fib_learn.h"
 
 void exampleEvolution();
 void exampleFromFile();
@@ -10,56 +13,41 @@ void exampleParsingRandom();
 void exampleParsingFile();
 void exampleFib();
 
-void exampleJIT() {
-    std::vector<uint8_t> prog = { MOV_A_P, MOV_P_A, MOV_A_P };
-
-    run_fn2_t fn = compile_moves(prog);
-
-    // Prepare runtime buffers
-    double inputs[4] = {1.0,2.0,3.0,4.0};
-    double regs[8]; std::memset(regs, 0, sizeof(regs));
-    double constants[4] = {0.1,0.2,0.3,0.4};
-
-    // rng function
-    auto rng = []()->double { return 0.42; };
-
-    // Call JITed function
-    fn(inputs, 4, regs, 8, constants, 4, +[](){ return 0.0; }); // dummy constant and rng
-
-    std::cout << "Done JIT\n";
+double yes() {
+    return 1;
 }
 
 void exampleCompile() {
-    // work: MOV_P_A, MOV_A_P, DEC
-    // bugs: too many instructinos: MOV_P_A, MOV_A_P, INC, DEC
-    // don't work: everything with registers and inputs
-    // bad mem size with RNG, SET
     std::vector<uint8_t> program = {
-            MOV_R_A,
-            INC,
-            MOV_A_P,
-            MOV_R_A,
+            LOP_P,
+            RNG,
             LOP_A,
-            DEC,
-            MOV_A_R,
+            SIN_R,
+            FOR,
             INC,
-            ADD_R,
-            INC,
-            MOV_R_A,
-            MOV_A_P,
-            END,
+            COS_I,
+            MOV_A_I,
+            COS_I,
+            EXP_I,
+            COS_R,
             MOV_A_R,
-            MOV_I_A
+            SUB_R,
+            MOV_A_I,
+            SIN_R,
+            FOR,
+            SET,
+            COS_I,
+            DIV_I,
+            SET
     };
 
-    std::vector<double> constants = {1,2,3};
-    auto runner = GAsmInterpreter(program, 2, constants);
-    run_fn_t compiled = runner.compile(program); // compile the program to assembly
+    auto runner = GAsmInterpreter(program, 2);
+    run_fn_t compiled = runner.compile(); // compile the program to assembly
 
     auto* inputs = new double[]{7.0};
     double regs[2]; std::memset(regs, 0, sizeof(regs));
 
-    size_t time = compiled(inputs, 1, regs, 2, +[](){ return 0.0; }, +[](){ return 0.0; }); // dummy constant and rng
+    size_t time = compiled(inputs, 1, regs, 2, +[](){ return 0.0; }, +[](){ return 0.0; }, 10000); // dummy constant and rng
 
     std::cout << "Process time: " << time << std::endl;
     std::cout << "Result: " << inputs[0] << std::endl;
@@ -72,7 +60,8 @@ int main() {
 //    exampleFromFile();
 //    exampleFib();
 //    exampleJIT();
-    exampleCompile();
+//    exampleCompile();
+    fibEvolution();
     return 0;
 }
 
@@ -112,8 +101,7 @@ void exampleFib() {
     for (int i = 0; i < gasm.length(); i++) {
         program.push_back(gasm.bytecode()[i]);
     }
-    std::vector<double> constants = {1,2,3};
-    auto runner = GAsmInterpreter(program, 2, constants);
+    auto runner = GAsmInterpreter(program, 2);
     int number;
     std::cout << "Which fib you want?" << std::endl;
     std::cin >> number;

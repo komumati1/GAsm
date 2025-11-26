@@ -83,7 +83,7 @@ Comments are denoted by //.
 | Instruction | Opcode | Description                  | C equivalent |
 | ----------- | ------ | ---------------------------- | --- |
 | END         | 0x62   | End block of code (loops and conditionals).       |
-| RNG         | 0x63   | Store a truly random value into A. |
+| rng         | 0x63   | Store a truly random value into A. |
 
 ## Example code
 

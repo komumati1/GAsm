@@ -17,18 +17,18 @@ class GAsm;
 class FitnessFunction {
 public:
     virtual ~FitnessFunction() = default;
-    virtual double operator()(const GAsm* self, const std::vector<uint8_t>& individual) = 0;
+    virtual double operator()(GAsm* self, const std::vector<uint8_t>& individual, size_t ind) = 0;
 };
 
 class Fitness : public FitnessFunction {
 public:
     Fitness() = default;
-    double operator()(const GAsm* self, const std::vector<uint8_t>& individual) override;
+    double operator()(GAsm* self, const std::vector<uint8_t>& individual, size_t ind) override;
 };
 
 class SelectionFunction {
 public:
-    bool selectBest = true;
+    bool selectMinimal = true;
     virtual ~SelectionFunction() = default;
     virtual size_t operator()(const GAsm* self) = 0;
 };

@@ -45,7 +45,9 @@ add_executable(GAsm
         src/jit_moves.cpp
         include/jit_moves.h
         src/GAsmCompiler.cpp
-        src/GAsmCompiler.cpp)
+        src/GAsmCompiler.cpp
+        src/tests.cpp
+        include/fib_learn.h)
 
 target_link_libraries(GAsm PRIVATE nlohmann_json::nlohmann_json)
 target_include_directories(GAsm PRIVATE ${xbyak_SOURCE_DIR}/xbyak)

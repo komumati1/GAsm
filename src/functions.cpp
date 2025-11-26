@@ -6,7 +6,7 @@
 #include "GAsm.h"
 #include "GAsmParser.h"
 
-double Fitness::operator()(const GAsm *self, const std::vector<uint8_t> &individual) {
+double Fitness::operator()(GAsm *self, const std::vector<uint8_t> &individual, size_t ind) {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
     double score = 0.0;
     for (unsigned char i : individual) {
@@ -22,7 +22,7 @@ size_t TournamentSelection::operator()(const GAsm *self) {
     size_t bestIndex = dist(rng);
     for (unsigned int i = 1; i < _tournamentSize; i++) {
         size_t idx = dist(rng);
-        if ((selectBest ? self->getFitness()[idx] : -self->getFitness()[idx]) > self->getFitness()[bestIndex]) {
+        if (selectMinimal ? self->getFitness()[idx] < self->getFitness()[bestIndex] : self->getFitness()[idx] > self->getFitness()[bestIndex]) {
             bestIndex = idx;
         }
     }

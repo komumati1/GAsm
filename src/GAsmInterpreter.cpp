@@ -3,154 +3,43 @@
 //
 
 #include <vector>
-#include <cstdint>
 #include <cmath>
 #include <random>
-#include "GAsmInterpreter.h"
 #include "GAsmParser.h"
+#include "GAsmInterpreter.h"
 
-GAsmInterpreter::GAsmInterpreter(std::vector<uint8_t> &program, size_t registerLength,
-                                 std::vector<double>& constants)
- : _program(program), _registers(registerLength), _constants(constants), _constantsLength(constants.size()), _counter(0) {}
-
-void GAsmInterpreter::setProgram(std::vector<uint8_t> &program) {
-    _program = program;
+GAsmInterpreter::GAsmInterpreter(std::vector<uint8_t>& program, size_t registerLength)
+ : _program(program), // this is effectively const
+ _registers(registerLength),
+ _compiled(nullptr),
+ _code(1, Xbyak::AutoGrow) {
+    if (registerLength == 0) {
+        throw std::invalid_argument("Register length should be greater than 0");
+    }
 }
 
-//static void compile(std::vector<uint8_t> program) {
-////    __asm(
-////        "push rbp" // begin function, rbp is the stack
-////        "mov  rbp, rsp" // rsp is the stack pointer
-////        "mov  QWORD PTR [rbp-40], rdi" // rdi is the 1st argument (program) -40 cause we want it to be at the end (depends on the rest of the stack)
-////        "mov  QWORD PTR [rbp-48], rsi" // rsi is 2nd argument (length) -48 last on stack, +8 from the size(double*)
-////        "call constant()"
-////    );
-//    // TODO don't write it here but to the external function
-//
-//    __asm(
-//        "push    rbp"
-//        "mov     rbp, rsp"
-//        "mov     QWORD PTR [rbp-40], rdi"
-//        "mov     QWORD PTR [rbp-48], rsi"
-//        "mov     QWORD PTR [rbp-56], rdx"
-//        "mov     QWORD PTR [rbp-64], rcx"
-//        "mov     QWORD PTR [rbp-72], r8"
-//        "mov     QWORD PTR [rbp-80], r9"
-//        "mov     QWORD PTR [rbp-8], 1000"
-//        "mov     QWORD PTR [rbp-16], 0"
-//        "mov     QWORD PTR [rbp-24], 0"
-//        "pxor    xmm0, xmm0"
-//        "movsd   QWORD PTR [rbp-32], xmm0"
-//    );
-//    for (size_t i = 0; i < program.size(); i++) {
-//        const uint8_t &opcode = program[i];
-//        switch (opcode) {
-//
-//            // ===== MOV =====
-//            case MOV_P_A:  // P = A
-////                P = static_cast<int>(A);
-//                __asm("");
-//                break;
-//
-//            case MOV_A_P:  // A = P
-////                A = static_cast<double>(P);
-//                __asm("");
-//                break;
-//
-//            case MOV_A_R:  // A = R[P]
-////                A = _registers[P % registerLength];
-//                __asm("");
-//                break;
-//
-//            case MOV_A_I:  // A = I[P]
-////                A = inputs[P % inputLength];
-//                __asm("");
-//                break;
-//
-//            case MOV_R_A:  // R = A
-////                _registers[P % registerLength] = A;
-//                __asm("");
-//                break;
-//
-//            case MOV_I_A:  // I[P] = A
-////                inputs[P % inputLength] = A;
-//                __asm("");
-//                break;
-//        }
-//    }
-//}
-/*
-     * rax and rdx are heavily used around in division
-     * rdi - 1st argument; inputs pointer
-     * rsi - 2nd argument; input length
-     * rdx - 3rd argument; registers pointer
-     * rcx - 4th argument; registers length
-     * r8 - P; pointer
-     * xmm0 - A; Accumulator
-     */
-/*
- * r8 - free to use
- * r9 - free to use
- * ;xmm0 is the Accumulator
- * pxor xmm0, xmm0; clear out the Accumulator
- * if the register length is a power of 2:
-mov     rax, QWORD PTR [rbp-8]          ; load P
-and     rax, QWORD PTR [rbp-64] - 1     ; mask = registerLength - 1
-mov     rdx, QWORD PTR [rbp-56]         ; load registers base
-movsd   xmm0, QWORD PTR [rbp-16]        ; load A
-movsd   QWORD PTR [rdx + rax*8], xmm0   ; store A
+void GAsmInterpreter::setProgram(std::vector<uint8_t>& program) {
+    _program = program;  // this is effectively const
+    _code.reset();
+    _compiled = nullptr;
+}
 
- *
- * P = static_cast<int>(A);    ->
- * A = static_cast<double>(P); -> mov rax, QWORD PTR [rbp - STACK]; cvtsi2sd xmm0, rax; mov QWORD PTR [rbp
- * A = _registers[P % registerLength]; ->
- * A = inputs[P % inputLength]; ->
- * _registers[P % registerLength] = A; ->
- * inputs[P % inputLength] = A; ->
- */
-
-//void run(double* inputs, size_t inputLength, double* registers, size_t registerLength, double* constants, size_t constantLength, double (*rng)(void)) {
-//    // functions:
-//    // constants() - gets new constant
-//    // rand() - gets random from 0 to 1
-//    constexpr size_t maxProcessTime = 1000;
-//    size_t processTime = 0;
-//    size_t P = 0;          // Program pointer
-//    double A = 0;          // Accumulator
-//    A = rng();
-////    P = static_cast<int>(A);
-////    A = static_cast<double>(P);
-//    registers[P % registerLength] = A;
-//    P++;
-//    A = static_cast<double>(P);
-//    registers[P % registerLength] = A;
-//    while (A <= inputs[P % inputLength]) {
-//        P--;
-//        A = registers[P % registerLength];
-//        P++;
-//        A += registers[P % registerLength];
-//        P++;
-//        registers[P % registerLength] = A;
-//        P = static_cast<size_t>(A);
-//    }
-//    A = registers[P % registerLength];
-//    inputs[P % inputLength] = A;
-////    MOV A, R // retrieve previous value
-////    INC
-////    ADD R    // add next value
-////    INC
-////    MOV R, A // save next value
-////    MOV A, P // move count in P to A for loop to work
-////    END
-////    MOV A, R
-////    MOV I, A // move last number to input (output)
-//}
+void GAsmInterpreter::setRegisterLength(size_t registerLength) {
+    _registers.resize(registerLength);
+}
 
 size_t GAsmInterpreter::run(std::vector<double> &inputs, size_t maxProcessTime) {
-    static thread_local std::mt19937 engine(std::random_device{}());
-    std::uniform_real_distribution<double> dist(0, 1);
+    if (useCompile) {
+        return runCompiled(inputs, maxProcessTime);
+    } else {
+        return runInterpreter(inputs, maxProcessTime);
+    }
+}
 
-    _counter = 0; // reset constant counter
+size_t GAsmInterpreter::runInterpreter(std::vector<double> &inputs, size_t maxProcessTime) {
+    if (inputs.empty()) {
+        throw std::invalid_argument("Input length should be greater than 0");
+    }
     std::fill(_registers.begin(), _registers.end(), 0);
     size_t inputLength = inputs.size();
     size_t registerLength = _registers.size();
@@ -215,7 +104,7 @@ size_t GAsmInterpreter::run(std::vector<double> &inputs, size_t maxProcessTime) 
             case INC: P++; break;
             case DEC: P--; break;
             case RES: P = 0; break;
-            case SET: A = _constants[_counter++ % _constantsLength]; break; // TODO func
+            case SET: A = cng(); break;
 
 
             // ===== LOOPS =====
@@ -308,7 +197,7 @@ size_t GAsmInterpreter::run(std::vector<double> &inputs, size_t maxProcessTime) 
                 break;
 
             case RNG:
-                A = static_cast<double>(dist(engine));
+                A = rng();
                 break;
 
 
@@ -337,5 +226,16 @@ size_t GAsmInterpreter::run(std::vector<double> &inputs, size_t maxProcessTime) 
         }
     }
     return processTime;
+}
+
+size_t GAsmInterpreter::runCompiled(std::vector<double> &inputs, size_t maxProcessTime) {
+    if (inputs.empty()) {
+        throw std::invalid_argument("Input length should be greater than 0");
+    }
+    if (_compiled == nullptr) {
+        _compiled = compile();
+    }
+    std::fill(_registers.begin(), _registers.end(), 0);
+    return _compiled(inputs.data(), inputs.size(), _registers.data(), _registers.size(), cng, rng, maxProcessTime);
 }
 
