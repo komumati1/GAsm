@@ -6,6 +6,7 @@
 #include "GAsmInterpreter.h"
 #include "include/jit_moves.h"
 #include "fib_learn.h"
+#include "tests.h"
 
 void exampleEvolution();
 void exampleFromFile();
@@ -61,7 +62,8 @@ int main() {
 //    exampleFib();
 //    exampleJIT();
 //    exampleCompile();
-    fibEvolution();
+//    fibEvolution();
+    CppvsGAsm();
     return 0;
 }
 

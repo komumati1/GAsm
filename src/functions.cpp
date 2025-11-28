@@ -6,13 +6,13 @@
 #include "GAsm.h"
 #include "GAsmParser.h"
 
-double Fitness::operator()(GAsm *self, const std::vector<uint8_t> &individual, size_t ind) {
+std::pair<double, double> Fitness::operator()(GAsm *self, const std::vector<uint8_t> &individual) {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
     double score = 0.0;
     for (unsigned char i : individual) {
         if (i == 0x00) score++;
     }
-    return score;
+    return {score, 0.0};
 }
 
 size_t TournamentSelection::operator()(const GAsm *self) {

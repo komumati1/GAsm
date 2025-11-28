@@ -17,13 +17,13 @@ class GAsm;
 class FitnessFunction {
 public:
     virtual ~FitnessFunction() = default;
-    virtual double operator()(GAsm* self, const std::vector<uint8_t>& individual, size_t ind) = 0;
+    virtual std::pair<double, double> operator()(GAsm* self, const std::vector<uint8_t>& individual) = 0;
 };
 
 class Fitness : public FitnessFunction {
 public:
     Fitness() = default;
-    double operator()(GAsm* self, const std::vector<uint8_t>& individual, size_t ind) override;
+    std::pair<double, double> operator()(GAsm* self, const std::vector<uint8_t>& individual) override;
 };
 
 class SelectionFunction {

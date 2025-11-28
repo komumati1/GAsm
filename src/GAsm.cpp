@@ -12,11 +12,12 @@
 #include <thread>
 #include <cfloat>
 
-GAsm::GAsm() : _p(std::vector<uint8_t>(0)), _runner(_p, 1) { // TODO dirty fix
+GAsm::GAsm() : _runner(1) {
     _runner.setRegisterLength(_registerLength);
+    _runner.useCompile = _useCompile;
 }
 
-GAsm::GAsm(const std::string &filename) : _p(std::vector<uint8_t>(0)), _runner(_p, 1) { // TODO dirty fix
+GAsm::GAsm(const std::string &filename) : _runner(1) {
     using nlohmann::json;
     // Read file
     std::ifstream file(filename, std::ios::binary);
@@ -220,7 +221,9 @@ void GAsm::evolve(const std::vector<std::vector<double>>& inputs_,
         printProgressBar(progress, elapsed);
         (*growFunction)(this, _population[i]);
 //        std::cout << std::endl << GAsmParser::bytecode2Text(_population[i].data(), _population[i].size()) << std::endl;
-        _fitness[i] = (*fitnessFunction)(this, _population[i], i);
+        std::pair<double, double> fitRank = (*fitnessFunction)(this, _population[i]);
+        _fitness[i] = fitRank.first;
+        _rank[i] = fitRank.second;
     }
     std::cout << std::endl;
     printGenerationStats(0);
@@ -246,7 +249,9 @@ void GAsm::evolve(const std::vector<std::vector<double>>& inputs_,
                 (*mutationFunction)(this, _population[worstIndex], _population[bestIndex]);
             }
 
-            _fitness[worstIndex] = (*fitnessFunction)(this, _population[worstIndex], worstIndex);
+            std::pair<double, double> fitRank = (*fitnessFunction)(this, _population[worstIndex]);
+            _fitness[worstIndex] = fitRank.first;
+            _rank[worstIndex] = fitRank.second;
             int progress = (i + 1) * 100 / (int) populationSize;
             double elapsed = duration<double>(high_resolution_clock::now() - genStart).count();
             printProgressBar(progress, elapsed);
@@ -280,11 +285,45 @@ const std::vector<double> &GAsm::getRank() const {
     return _rank;
 }
 
-void GAsm::setProgram(std::vector<uint8_t>& program) {
-    _runner.useCompile = useCompile;
+const gen_fun_t& GAsm::getCNG() const {
+    return _runner.cng;
+}
+
+void GAsm::setCNG(const gen_fun_t& cng_) {
+    _runner.cng = cng_;
+}
+
+const gen_fun_t& GAsm::getRNG() const {
+    return _runner.rng;
+}
+
+void GAsm::setRNG(const gen_fun_t& rng_) {
+    _runner.cng = rng_;
+}
+
+const bool& GAsm::getCompile() const {
+    return _runner.useCompile;
+}
+
+void GAsm::setCompile(const bool& useCompile_) {
+    _runner.useCompile = useCompile_;
+}
+
+void GAsm::setProgram(const std::vector<uint8_t>& program) {
     _runner.setProgram(program);
 }
 
-size_t GAsm::run(std::vector<double> &inputs_) {
+size_t GAsm::run(std::vector<double>& inputs_) {
     return _runner.run(inputs_, maxProcessTime);
+}
+
+double GAsm::runAll(const std::vector<uint8_t>& program, std::vector<std::vector<double>>& outputs) {
+    _runner.setProgram(program);
+    double sumTime = 0.0;
+    for (const auto& input : inputs) {
+        std::vector<double> output = input;
+        sumTime += (double)_runner.run(output, maxProcessTime);
+        outputs.push_back(std::move(output));
+    }
+    return sumTime;
 }

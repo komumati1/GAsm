@@ -7,17 +7,18 @@
 class FibFitness : public FitnessFunction {
 public:
     FibFitness() = default;
-    double operator()(GAsm* self, const std::vector<uint8_t>& individual, size_t ind) override {
+    std::pair<double, double> operator()(GAsm* self, const std::vector<uint8_t>& individual) override {
         self->setProgram(const_cast<std::vector<uint8_t> &>(individual));
         double score = 0.0;
+        double avgTime = 0.0;
         for (int i = 0; i < self->inputs.size(); i++) {
             std::vector<double> input = self->inputs[i];
             const std::vector<double>& target = self->targets[i];
-            size_t processTime = self->run(input);
-            self->setRank(i, (double)processTime);
-            score += fabs(input[0] - target[0]);
+            avgTime += (double)self->run(input);
+            score += fabs(input[0] - target[0]); // TODO handle NaN
         }
-        return score;
+        avgTime /= (double)self->inputs.size();
+        return {score, avgTime};
     }
 };
 
@@ -56,7 +57,6 @@ void fibEvolution() {
             MOV_A_R,
             MOV_I_A
     };
-    gasm.useCompile = true; // use compilation
 
     // input and target vectors
     std::vector<std::vector<double>> inputs = {

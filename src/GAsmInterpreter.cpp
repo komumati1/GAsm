@@ -8,18 +8,28 @@
 #include "GAsmParser.h"
 #include "GAsmInterpreter.h"
 
-GAsmInterpreter::GAsmInterpreter(std::vector<uint8_t>& program, size_t registerLength)
- : _program(program), // this is effectively const
- _registers(registerLength),
- _compiled(nullptr),
- _code(1, Xbyak::AutoGrow) {
+GAsmInterpreter::GAsmInterpreter(const std::vector<uint8_t>& program, size_t registerLength)
+  : _program(&program),
+    _registers(registerLength),
+    _compiled(nullptr),
+    _code(1, Xbyak::AutoGrow) {
     if (registerLength == 0) {
         throw std::invalid_argument("Register length should be greater than 0");
     }
 }
 
-void GAsmInterpreter::setProgram(std::vector<uint8_t>& program) {
-    _program = program;  // this is effectively const
+GAsmInterpreter::GAsmInterpreter(size_t registerLength)
+  : _program(nullptr),
+    _registers(registerLength),
+    _compiled(nullptr),
+    _code(1, Xbyak::AutoGrow) {
+    if (registerLength == 0) {
+        throw std::invalid_argument("Register length should be greater than 0");
+    }
+}
+
+void GAsmInterpreter::setProgram(const std::vector<uint8_t>& program) {
+    _program = &program;
     _code.reset();
     _compiled = nullptr;
 }
@@ -40,6 +50,9 @@ size_t GAsmInterpreter::runInterpreter(std::vector<double> &inputs, size_t maxPr
     if (inputs.empty()) {
         throw std::invalid_argument("Input length should be greater than 0");
     }
+    if (_program == nullptr) {
+        throw std::invalid_argument("Program is not set.");
+    }
     std::fill(_registers.begin(), _registers.end(), 0);
     size_t inputLength = inputs.size();
     size_t registerLength = _registers.size();
@@ -51,8 +64,8 @@ size_t GAsmInterpreter::runInterpreter(std::vector<double> &inputs, size_t maxPr
     size_t processTime = 0;
     bool skipToEnd = false;
 
-    for (size_t i = 0; i < _program.size(); i++) {
-        const uint8_t& opcode = _program[i];
+    for (size_t i = 0; i < _program->size(); i++) {
+        const uint8_t& opcode = _program->operator[](i);
         switch (opcode) {
 
             // ===== MOV =====
@@ -210,8 +223,8 @@ size_t GAsmInterpreter::runInterpreter(std::vector<double> &inputs, size_t maxPr
             break;
         }
         if (skipToEnd) {
-            for (int endCounter = 0; i < _program.size(); i++) {
-                const uint8_t &instruction = _program[i];
+            for (int endCounter = 0; i < _program->size(); i++) {
+                const uint8_t &instruction = _program->operator[](i);
                 if (FOR <= instruction && instruction <= JMP_P) { // instruction with END
                     endCounter++;
                 } else if (instruction == END) {
@@ -231,6 +244,9 @@ size_t GAsmInterpreter::runInterpreter(std::vector<double> &inputs, size_t maxPr
 size_t GAsmInterpreter::runCompiled(std::vector<double> &inputs, size_t maxProcessTime) {
     if (inputs.empty()) {
         throw std::invalid_argument("Input length should be greater than 0");
+    }
+    if (_program == nullptr) {
+        throw std::invalid_argument("Program is not set.");
     }
     if (_compiled == nullptr) {
         _compiled = compile();

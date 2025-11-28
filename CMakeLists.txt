@@ -22,10 +22,6 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(xbyak)
 
-#find_package(Sleef REQUIRED) # if package available
-## or FetchContent for the source
-#target_link_libraries(GAsm PRIVATE Sleef::sleef)
-
 add_executable(GAsm
         main.cpp
         src/GAsmParser.cpp
@@ -47,7 +43,8 @@ add_executable(GAsm
         src/GAsmCompiler.cpp
         src/GAsmCompiler.cpp
         src/tests.cpp
-        include/fib_learn.h)
+        include/fib_learn.h
+        include/tests.h)
 
 target_link_libraries(GAsm PRIVATE nlohmann_json::nlohmann_json)
 target_include_directories(GAsm PRIVATE ${xbyak_SOURCE_DIR}/xbyak)
