@@ -84,6 +84,6 @@ class cmake_build_ext(build_ext):
 setup(
     name="gasm",
     version="0.1",
-    ext_modules=[CMakeExtension(name="gasm", cmake_lists_dir="gasm/python")],
+    ext_modules=[CMakeExtension(name="gasm")], # , cmake_lists_dir="gasm/python"
     cmdclass={'build_ext': cmake_build_ext},
 )
