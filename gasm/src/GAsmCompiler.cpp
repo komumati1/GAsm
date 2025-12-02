@@ -14,6 +14,16 @@ run_fn_t GAsmInterpreter::compile() {
     auto startLabelStack = std::vector<Xbyak::Label>();
     auto instructionStack = std::vector<uint8_t>();
     size_t stackSize = 0;
+    constexpr size_t spaceBetweenProcessTime = 10;
+    size_t processTimeCounter = 0;
+
+    // functions that will be called
+    double (*exp_fn)(double) = exp;
+    double (*sin_fn)(double) = sin;
+    double (*cos_fn)(double) = cos;
+    auto exp_asm = (uint64_t)(void*) exp_fn;
+    auto sin_asm = (uint64_t)(void*) sin_fn;
+    auto cos_asm = (uint64_t)(void*) cos_fn;
 
     // Important! don't use for constants:
     // rax - used in division and general operations
@@ -233,7 +243,7 @@ run_fn_t GAsmInterpreter::compile() {
 #ifdef _WIN64
                     _code.sub(rsp, 32);  // windows shadow space
 #endif
-                    _code.mov(rax, (size_t) sin);
+                    _code.mov(rax, sin_asm);
                     _code.call(rax);     // call sin(xmm0), sin(A)
 #ifdef _WIN64
                     _code.add(rsp, 32);
@@ -244,7 +254,7 @@ run_fn_t GAsmInterpreter::compile() {
 #else
                     _code.sub(rsp, 8);   // stack alignment
 #endif
-                    _code.mov(rax, (size_t) sin);
+                    _code.mov(rax, sin_asm);
                     _code.call(rax);  // call sin(xmm0), sin(A)
 #ifdef _WIN64
                     _code.add(rsp, 40);
@@ -265,7 +275,7 @@ run_fn_t GAsmInterpreter::compile() {
 #ifdef _WIN64
                     _code.sub(rsp, 32);  // windows shadow space
 #endif
-                    _code.mov(rax, (size_t) cos);
+                    _code.mov(rax, cos_asm);
                     _code.call(rax);     // call cos(xmm0), cos(A)
 #ifdef _WIN64
                     _code.add(rsp, 32);
@@ -276,7 +286,7 @@ run_fn_t GAsmInterpreter::compile() {
 #else
                     _code.sub(rsp, 8);   // stack alignment
 #endif
-                    _code.mov(rax, (size_t) cos);
+                    _code.mov(rax, cos_asm);
                     _code.call(rax);     // call cos(xmm0), cos(A)
 #ifdef _WIN64
                     _code.add(rsp, 40);
@@ -297,7 +307,7 @@ run_fn_t GAsmInterpreter::compile() {
 #ifdef _WIN64
                     _code.sub(rsp, 32);  // windows shadow space
 #endif
-                    _code.mov(rax, (size_t)exp);
+                    _code.mov(rax, exp_asm);
                     _code.call(rax);     // call exp(xmm0), exp(A
 #ifdef _WIN64
                     _code.add(rsp, 32);
@@ -308,7 +318,7 @@ run_fn_t GAsmInterpreter::compile() {
 #else
                     _code.sub(rsp, 8);   // stack alignment
 #endif
-                    _code.mov(rax, (size_t)exp);
+                    _code.mov(rax, exp_asm);
                     _code.call(rax);     // call exp(xmm0), exp(A
 #ifdef _WIN64
                     _code.add(rsp, 40);
@@ -349,7 +359,7 @@ run_fn_t GAsmInterpreter::compile() {
 #ifdef _WIN64
                     _code.sub(rsp, 32);  // windows shadow space
 #endif
-                    _code.mov(rax, (size_t) sin);
+                    _code.mov(rax, sin_asm);
                     _code.call(rax);     // call sin(xmm0), sin(A)
 #ifdef _WIN64
                     _code.add(rsp, 32);
@@ -360,7 +370,7 @@ run_fn_t GAsmInterpreter::compile() {
 #else
                     _code.sub(rsp, 8);   // stack alignment
 #endif
-                    _code.mov(rax, (size_t) sin);
+                    _code.mov(rax, sin_asm);
                     _code.call(rax);  // call sin(xmm0), sin(A)
 #ifdef _WIN64
                     _code.add(rsp, 40);
@@ -381,7 +391,7 @@ run_fn_t GAsmInterpreter::compile() {
 #ifdef _WIN64
                     _code.sub(rsp, 32);  // windows shadow space
 #endif
-                    _code.mov(rax, (size_t) cos);
+                    _code.mov(rax, cos_asm);
                     _code.call(rax);     // call cos(xmm0), cos(A)
 #ifdef _WIN64
                     _code.add(rsp, 32);
@@ -392,7 +402,7 @@ run_fn_t GAsmInterpreter::compile() {
 #else
                     _code.sub(rsp, 8);   // stack alignment
 #endif
-                    _code.mov(rax, (size_t) cos);
+                    _code.mov(rax, cos_asm);
                     _code.call(rax);     // call cos(xmm0), cos(A)
 #ifdef _WIN64
                     _code.add(rsp, 40);
@@ -413,8 +423,8 @@ run_fn_t GAsmInterpreter::compile() {
 #ifdef _WIN64
                     _code.sub(rsp, 32);  // windows shadow space
 #endif
-                    _code.mov(rax, (size_t)exp);
-                    _code.call(rax);     // call exp(xmm0), exp(A
+                    _code.mov(rax, exp_asm);
+                    _code.call(rax);     // call exp(xmm0), exp(A)
 #ifdef _WIN64
                     _code.add(rsp, 32);
 #endif
@@ -424,8 +434,8 @@ run_fn_t GAsmInterpreter::compile() {
 #else
                     _code.sub(rsp, 8);   // stack alignment
 #endif
-                    _code.mov(rax, (size_t) exp);
-                    _code.call(rax);     // call exp(xmm0), exp(A
+                    _code.mov(rax, exp_asm);
+                    _code.call(rax);     // call exp(xmm0), exp(A)
 #ifdef _WIN64
                     _code.add(rsp, 40);
 #else
@@ -519,6 +529,13 @@ run_fn_t GAsmInterpreter::compile() {
                 // we don't have to check the condition the first time
                 // loop start
                 _code.L(startLabelStack.back());
+                // move process time forward
+//                _code.mov(rax, processTime);        // make a copy in rax
+//                _code.add(rax, processTimeCounter); // add the amount of instructions
+//                _code.mov(processTime, rax);        // save to process time
+//                _code.cmp(rax, maxProcessTime);
+//                _code.ja(endProgram, Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to end
+//                processTimeCounter = 0;
                 break;
             }
             case LOP_A: {
@@ -531,6 +548,13 @@ run_fn_t GAsmInterpreter::compile() {
                 _code.jmp(endLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to the end
                 // loop start
                 _code.L(startLabelStack.back());
+                // move process time forward
+//                _code.mov(rax, processTime);        // make a copy in rax
+//                _code.add(rax, processTimeCounter); // add the amount of instructions
+//                _code.mov(processTime, rax);        // save to process time
+//                _code.cmp(rax, maxProcessTime);
+//                _code.ja(endProgram, Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to end
+//                processTimeCounter = 0;
                 break;
             }
             case LOP_P: {
@@ -543,6 +567,13 @@ run_fn_t GAsmInterpreter::compile() {
                 _code.jmp(endLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to the end
                 // loop start
                 _code.L(startLabelStack.back());
+                // move process time forward
+//                _code.mov(rax, processTime);        // make a copy in rax
+//                _code.add(rax, processTimeCounter); // add the amount of instructions
+//                _code.mov(processTime, rax);        // save to process time
+//                _code.cmp(rax, maxProcessTime);
+//                _code.ja(endProgram, Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to end
+//                processTimeCounter = 0;
                 break;
             }
             case JMP_I: {
@@ -659,12 +690,21 @@ run_fn_t GAsmInterpreter::compile() {
             }
         }
         // increase process time and check if it's the end
-        // TODO make it faster, do it every 10 times and on loop entry
         _code.mov(rax, processTime); // make a copy in rax
         _code.add(rax, 1);           // add 1
         _code.mov(processTime, rax); // save to process time
         _code.cmp(rax, maxProcessTime);
         _code.ja(endProgram, Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to end
+        // TODO make it faster, do it every 10 times and on loop entry TESTING
+//        processTimeCounter++;
+//        if (processTimeCounter == spaceBetweenProcessTime) {
+//            _code.mov(rax, processTime);             // make a copy in rax
+//            _code.add(rax, spaceBetweenProcessTime); // add step amount
+//            _code.mov(processTime, rax);             // save to process time
+//            _code.cmp(rax, maxProcessTime);
+//            _code.ja(endProgram, Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to end
+//            processTimeCounter = 0;
+//        }
     }
     // put unused labels at the end
     while (!endLabelStack.empty()) {
@@ -721,6 +761,7 @@ run_fn_t GAsmInterpreter::compile() {
     _code.shl(rax, 3);                // * 8, move stack by 8 for every push
     _code.add(rsp, rax);              // pop from stack
     _code.mov(rax, processTime); // return process time
+//    _code.add(rax, spaceBetweenProcessTime - processTimeCounter - 1); // add remaining process time
     _code.add(rsp, LOCALS); // restore stack of locals
     // restore the caller's stack
     _code.pop(r15);

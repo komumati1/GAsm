@@ -3,7 +3,9 @@
 //
 
 #include <fstream>
+#include <sstream>
 #include <filesystem>
+#include <string>
 #include <unordered_map>
 #include <algorithm>
 #include <vector>

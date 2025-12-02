@@ -2,6 +2,10 @@
 // Created by mateu on 20.11.2025.
 //
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
 #include "functions.h"
 #include "GAsm.h"
 #include "GAsmParser.h"
@@ -102,7 +106,7 @@ void HardMutation::operator()(const GAsm *self, std::vector<uint8_t> &worstIndiv
                               const std::vector<uint8_t> &bestIndividual) {
     static thread_local std::mt19937 rng(std::random_device{}());
     std::uniform_real_distribution<double> probDist(0.0, 1.0);
-    std::uniform_int_distribution<uint8_t> byteDist(0, 31); // bytecode range is 0-31
+    std::uniform_int_distribution<int> byteDist(0, 31); // bytecode range is 0-31
 
     worstIndividual = bestIndividual;
 
@@ -113,11 +117,11 @@ void HardMutation::operator()(const GAsm *self, std::vector<uint8_t> &worstIndiv
     }
 }
 
-static std::array<std::uniform_int_distribution<uint8_t>, INSTRUCTION_GROUPS> makeDists() {
-    std::array<std::uniform_int_distribution<uint8_t>, INSTRUCTION_GROUPS> arr;
+static std::array<std::uniform_int_distribution<int>, INSTRUCTION_GROUPS> makeDists() {
+    std::array<std::uniform_int_distribution<int>, INSTRUCTION_GROUPS> arr;
 
     for (int i = 0; i < INSTRUCTION_GROUPS; i++) {
-        arr[i] = std::uniform_int_distribution<uint8_t>(0, GAsmParser::instructionGroupLengths[i] - 1);
+        arr[i] = std::uniform_int_distribution<int>(0, GAsmParser::instructionGroupLengths[i] - 1);
     }
 
     return arr;
@@ -128,7 +132,7 @@ void SoftMutation::operator()(const GAsm *self, std::vector<uint8_t> &worstIndiv
     static thread_local std::mt19937 rng(std::random_device{}());
     std::uniform_real_distribution<double> probDist(0.0, 1.0);
 
-    static const std::array<std::uniform_int_distribution<uint8_t>, INSTRUCTION_GROUPS> dists = makeDists();
+    static const std::array<std::uniform_int_distribution<int>, INSTRUCTION_GROUPS> dists = makeDists();
 
     worstIndividual = bestIndividual;
 
@@ -144,7 +148,7 @@ void FullGrow::operator()(const GAsm *self, std::vector<uint8_t> &individual) {
     individual.clear();
 
     static thread_local std::mt19937 engine(std::random_device{}());
-    std::uniform_int_distribution<uint8_t> dist(0, 31);
+    std::uniform_int_distribution<int> dist(0, 31);
 
     individual.resize(self->individualMaxSize);
     std::generate(individual.begin(),

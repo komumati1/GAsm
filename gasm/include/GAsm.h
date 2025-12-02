@@ -50,11 +50,11 @@ public:
     void setCompile(const bool& useCompile);
 
     // public attributes
-    unsigned int populationSize = 100000;
-    unsigned int individualMaxSize = 10000;
+    unsigned int populationSize = 1000;
+    unsigned int individualMaxSize = 30;
     double mutationProbability = 0.05;
     double crossoverProbability = 0.9;
-    unsigned int maxGenerations = 100;
+    unsigned int maxGenerations = 5;
     double goalFitness = 1000.0;
     bool minimize = false;
     Hist hist = Hist();

@@ -1,10 +1,10 @@
 #include <iostream>
 #include <ntdef.h>
 #include <profileapi.h>
-#include "include/GAsmParser.h"
-#include "include/GAsm.h"
+#include "GAsmParser.h"
+#include "GAsm.h"
 #include "GAsmInterpreter.h"
-#include "include/jit_moves.h"
+#include "jit_moves.h"
 #include "fib_learn.h"
 #include "tests.h"
 
@@ -13,10 +13,6 @@ void exampleFromFile();
 void exampleParsingRandom();
 void exampleParsingFile();
 void exampleFib();
-
-double yes() {
-    return 1;
-}
 
 void exampleCompile() {
     std::vector<uint8_t> program = {
@@ -64,6 +60,7 @@ int main() {
 //    exampleCompile();
 //    fibEvolution();
     CppvsGAsm();
+//    InterpreterVsCompiler();
     return 0;
 }
 

@@ -7,6 +7,7 @@
 
 
 void CppvsGAsm();
+void InterpreterVsCompiler();
 
 
 #endif //GASM_TESTS_H
