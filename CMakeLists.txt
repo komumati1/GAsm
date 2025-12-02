@@ -125,9 +125,27 @@ FetchContent_MakeAvailable(xbyak)
 # ----------------------------
 # Executable build
 # ----------------------------
-if (NOT CMAKE_BUILD_TYPE STREQUAL "Release")
-    add_executable(GAsm
-            examples/cpp/main.cpp
+if (BUILD_EXAMPLES)
+    add_subdirectory(gasm)
+    add_subdirectory(examples/cpp)
+endif()
+
+# ----------------------------
+# Python module
+# ----------------------------
+if (BUILD_PYTHON)
+    set(Python3_ROOT_DIR "C:/Users/mateu/AppData/Local/Programs/Python/Python311")
+    set(Python3_FIND_REGISTRY FIRST)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+
+    if(NOT DEFINED EXT_SUFFIX)
+        message(FATAL_ERROR "EXT_SUFFIX is not defined")
+    endif()
+
+    # Build a shared library for Python
+    add_library(GasmPython MODULE
+            gasm/python/GasmPython.cpp
+            gasm/python/GasmPython.h
             gasm/src/GAsmParser.cpp
             gasm/include/GAsmParser.h
             gasm/src/GAsm.cpp
@@ -142,68 +160,24 @@ if (NOT CMAKE_BUILD_TYPE STREQUAL "Release")
             gasm/include/functions.h
             gasm/src/GAsmInterpreter.cpp
             gasm/include/GAsmInterpreter.h
-            gasm/src/jit_moves.cpp
-            gasm/include/jit_moves.h
             gasm/src/GAsmCompiler.cpp
-            gasm/src/tests.cpp
-            gasm/include/fib_learn.h
-            gasm/include/tests.h
     )
 
-    target_link_libraries(GAsm PRIVATE nlohmann_json::nlohmann_json)
-    target_include_directories(GAsm PRIVATE ${xbyak_SOURCE_DIR}/xbyak)
-    target_include_directories(GAsm PRIVATE gasm/include)
+    # Fix name so Python can import it: gasm.pyd or gasm.so
+    set_target_properties(GasmPython PROPERTIES
+            PREFIX ""                # remove 'lib' prefix
+            OUTPUT_NAME "gasm"       # Python module name
+            SUFFIX "${EXT_SUFFIX}"   # Python pyd extension
+    )
+
+    target_include_directories(GasmPython PRIVATE
+            gasm/include
+            ${xbyak_SOURCE_DIR}/xbyak
+            ${Python3_INCLUDE_DIRS}
+    )
+
+    target_link_libraries(GasmPython PRIVATE
+            Python3::Python
+            nlohmann_json::nlohmann_json
+    )
 endif()
-# ----------------------------
-# Python module
-# commands:
-# * cd build
-# * cmake --build . --config Release
-# ----------------------------
-set(Python3_ROOT_DIR "C:/Users/mateu/AppData/Local/Programs/Python/Python311")
-set(Python3_FIND_REGISTRY FIRST)
-find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
-
-if(NOT DEFINED EXT_SUFFIX)
-    message(FATAL_ERROR "EXT_SUFFIX is not defined")
-endif()
-
-# Build a shared library for Python
-add_library(GasmPython MODULE
-        gasm/python/GasmPython.cpp
-        gasm/python/GasmPython.h
-        gasm/src/GAsmParser.cpp
-        gasm/include/GAsmParser.h
-        gasm/src/GAsm.cpp
-        gasm/include/GAsm.h
-        gasm/src/GP.cpp
-        gasm/include/GP.h
-        gasm/src/Entry.cpp
-        gasm/include/Entry.h
-        gasm/src/Hist.cpp
-        gasm/include/Hist.h
-        gasm/src/functions.cpp
-        gasm/include/functions.h
-        gasm/src/GAsmInterpreter.cpp
-        gasm/include/GAsmInterpreter.h
-        gasm/src/GAsmCompiler.cpp
-)
-
-# Fix name so Python can import it: gasm.pyd or gasm.so
-set_target_properties(GasmPython PROPERTIES
-        PREFIX ""                # remove 'lib' prefix
-        OUTPUT_NAME "gasm"       # Python module name
-        SUFFIX "${EXT_SUFFIX}"   # Python pyd extension
-)
-
-target_include_directories(GasmPython PRIVATE
-        gasm/include
-        ${xbyak_SOURCE_DIR}/xbyak
-        ${Python3_INCLUDE_DIRS}
-)
-
-target_link_libraries(GasmPython PRIVATE
-        Python3::Python
-        nlohmann_json::nlohmann_json
-)
-

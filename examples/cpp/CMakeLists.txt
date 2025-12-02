@@ -1,7 +1,12 @@
-add_executable(gasm_example main.cpp)
+add_executable(gasm_example
+        main.cpp
+        tests.cpp
+)
 
 target_link_libraries(gasm_example PRIVATE
         gasm
-        jit_moves.cpp
-        tests.cpp
+)
+
+target_include_directories(gasm_example PUBLIC
+        .
 )

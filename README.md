@@ -13,6 +13,10 @@ Registers:
 Each instruction is encoded as a single byte.
 Comments are denoted by //.
 
+# Python installation
+
+```python setup.py build_ext --inplace```
+
 # Instruction Set
 
 ## Data Movement
