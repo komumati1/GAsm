@@ -59,9 +59,9 @@ int main() {
 //    exampleFib();
 //    exampleJIT();
 //    exampleCompile();
-    fibEvolution();
-//    CppvsGAsm();
-//    InterpreterVsCompiler();
+//    fibEvolution();
+    CppvsGAsm();
+    InterpreterVsCompiler();
     return 0;
 }
 

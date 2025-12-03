@@ -101,9 +101,6 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# TODO testing
-#set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL$<$<CONFIG:Debug>:Debug>")
-#add_compile_options(/std:c++latest)
 if (MSVC)
     # Tell the Windows SDK which architecture we are building for,
     # otherwise ntdef.h/winnt.h can emit "No Target Architecture".

@@ -628,7 +628,7 @@ run_fn_t GAsmInterpreter::compile() {
                             _code.L(endLabelStack.back());     // bind the end label
                             _code.movsd(xmm1, ptr[inputs + PI*8]); // xmm1 = I[P % length]
                             _code.comisd(A, xmm1);             // compare A and xmm1
-                            _code.jnle(startLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if A <= xmm1
+                            _code.jg(startLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if A < xmm1
                             // end loop, pop all the stacks
                             instructionStack.pop_back();
                             endLabelStack.pop_back();
@@ -639,7 +639,7 @@ run_fn_t GAsmInterpreter::compile() {
                             _code.L(endLabelStack.back());     // bind the end label
                             _code.mov(rax, P);                 // save P to rax
                             _code.cmp(rax, inputLength);       // compare P and input length
-                            _code.jng(startLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if P <= inputLength
+                            _code.jg(startLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if P < inputLength
                             // end loop, pop all the stacks
                             instructionStack.pop_back();
                             endLabelStack.pop_back();

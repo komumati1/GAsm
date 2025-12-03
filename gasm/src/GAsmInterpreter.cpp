@@ -130,7 +130,7 @@ size_t GAsmInterpreter::runInterpreter(std::vector<double> &inputs, size_t maxPr
                 break;
 
             case LOP_A:
-                if (A <= inputs[P % inputLength]) {  // this has to be changed in 2 places
+                if (A < inputs[P % inputLength]) {  // this has to be changed in 2 places
                     instructionStack.push_back(LOP_A);
                     pointerStack.push_back(i);
                 } else {
@@ -140,7 +140,7 @@ size_t GAsmInterpreter::runInterpreter(std::vector<double> &inputs, size_t maxPr
                 break;
 
             case LOP_P:
-                if (P <= inputLength) {  // this has to be changed in 2 places
+                if (P < inputLength) {  // this has to be changed in 2 places
                     instructionStack.push_back(LOP_P);
                     pointerStack.push_back(i);
                 } else {
@@ -189,7 +189,7 @@ size_t GAsmInterpreter::runInterpreter(std::vector<double> &inputs, size_t maxPr
                             }
                             break;
                         case LOP_A:
-                            if (A <= inputs[P % inputLength]) {  // this has to be changed in 2 places
+                            if (A < inputs[P % inputLength]) {  // this has to be changed in 2 places
                                 i = pointerStack.back();
                             } else {
                                 instructionStack.pop_back();
@@ -197,7 +197,7 @@ size_t GAsmInterpreter::runInterpreter(std::vector<double> &inputs, size_t maxPr
                             }
                             break;
                         case LOP_P:
-                            if (P <= inputLength) {  // this has to be changed in 2 places
+                            if (P < inputLength) {  // this has to be changed in 2 places
                                 i = pointerStack.back();
                             } else {
                                 instructionStack.pop_back();

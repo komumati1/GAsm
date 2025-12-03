@@ -26,7 +26,7 @@ void fibEvolution() {
     auto gasm = GAsm();
     gasm.setRegisterLength(10);
     // global
-    gasm.maxGenerations = 100;
+    gasm.maxGenerations = 5;
     gasm.populationSize = 10000;
     gasm.individualMaxSize = 100;
     gasm.minimize = true;
