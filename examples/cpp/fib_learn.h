@@ -34,11 +34,11 @@ void fibEvolution() {
     gasm.maxProcessTime = 10000;
     gasm.mutationProbability = 0.2;
     // functions
-    gasm.fitnessFunction = new FibFitness();
-    gasm.crossoverFunction = new UniformPointCrossover();
-    gasm.selectionFunction = new TournamentSelection(3);
-    gasm.growFunction = new FullGrow();
-    gasm.mutationFunction = new HardMutation();
+//    gasm.fitnessFunction = new FibFitness();
+//    gasm.crossoverFunction = new UniformPointCrossover();
+//    gasm.selectionFunction = new TournamentSelection(3);
+//    gasm.growFunction = new FullGrow();
+//    gasm.mutationFunction = new HardMutation();
 
     std::vector<uint8_t> program = {
             MOV_R_A,

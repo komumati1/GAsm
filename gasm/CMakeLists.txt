@@ -7,10 +7,12 @@ add_library(gasm STATIC
         src/functions.cpp
         src/GAsmInterpreter.cpp
         src/GAsmCompiler.cpp
+        python/GasmPython.h
 )
 
 # Force C++23
-target_compile_features(gasm PUBLIC cxx_std_23)
+#target_compile_features(gasm PUBLIC cxx_std_23)
+
 
 target_include_directories(gasm PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include

@@ -5,6 +5,7 @@
 #include <vector>
 #include <cmath>
 #include <random>
+#include <iostream>
 #include "GAsmParser.h"
 #include "GAsmInterpreter.h"
 

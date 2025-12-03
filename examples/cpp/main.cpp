@@ -1,5 +1,4 @@
 #include <iostream>
-#include <ntdef.h>
 #include <profileapi.h>
 #include "GAsmParser.h"
 #include "GAsm.h"
@@ -43,8 +42,10 @@ void exampleCompile() {
 
     auto* inputs = new double[]{7.0};
     double regs[2]; std::memset(regs, 0, sizeof(regs));
+    double (*cng)() = +[](){ return 0.0; };
+    double (*rng)() = +[](){ return 0.0; };
 
-    size_t time = compiled(inputs, 1, regs, 2, +[](){ return 0.0; }, +[](){ return 0.0; }, 10000); // dummy constant and rng
+    size_t time = compiled(inputs, 1, regs, 2, cng, rng, 10000); // dummy constant and rng
 
     std::cout << "Process time: " << time << std::endl;
     std::cout << "Result: " << inputs[0] << std::endl;
@@ -58,8 +59,8 @@ int main() {
 //    exampleFib();
 //    exampleJIT();
 //    exampleCompile();
-//    fibEvolution();
-    CppvsGAsm();
+    fibEvolution();
+//    CppvsGAsm();
 //    InterpreterVsCompiler();
     return 0;
 }

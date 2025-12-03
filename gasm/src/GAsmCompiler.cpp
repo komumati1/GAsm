@@ -94,7 +94,7 @@ run_fn_t GAsmInterpreter::compile() {
     _code.sub(rsp, LOCALS); // reserve stack of locals
 
     // move function arguments to appropriate registers
-#ifdef __unix__
+#if defined(__unix__)
     _code.mov(inputs, rdi);
     _code.mov(inputLength, rsi);
     _code.mov(registers, rdx);
@@ -103,7 +103,7 @@ run_fn_t GAsmInterpreter::compile() {
     _code.mov(rng, r9);        // rng;
     _code.mov(rax, qword[rbp + 8]);
     _code.mov(maxProcessTime, rax); // max process time;
-#elifdef _WIN64
+#elif defined(_WIN64)
     _code.mov(inputs, rcx);
     _code.mov(inputLength, rdx);
     _code.mov(registers, r8);
@@ -114,6 +114,8 @@ run_fn_t GAsmInterpreter::compile() {
     _code.mov(rng, rax);            // rng;
     _code.mov(rax, qword[rbp + 64]);
     _code.mov(maxProcessTime, rax); // max process time;
+#else
+#   error "Unsupported platform / calling convention"
 #endif
 
     // reset P, PI, PR, A and processTime

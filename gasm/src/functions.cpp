@@ -9,14 +9,25 @@
 #include "functions.h"
 #include "GAsm.h"
 #include "GAsmParser.h"
+#include <iostream>
 
 std::pair<double, double> Fitness::operator()(GAsm *self, const std::vector<uint8_t> &individual) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    self->setProgram(individual);
     double score = 0.0;
-    for (unsigned char i : individual) {
-        if (i == 0x00) score++;
+    double avgTime = 0.0;
+    for (int i = 0; i < self->inputs.size(); i++) {
+        std::vector<double> input = self->inputs[i];
+        const std::vector<double>& target = self->targets[i];
+        avgTime += (double)self->run(input);
+
+        double diff = input[0] - target[0];
+        if (std::isnan(diff))
+            score += 1e1;      // TODO positive penalty (change when is minimum)
+        else
+            score += std::fabs(diff);
     }
-    return {score, 0.0};
+    avgTime /= (double)self->inputs.size();
+    return {score, avgTime};
 }
 
 size_t TournamentSelection::operator()(const GAsm *self) {
@@ -153,7 +164,8 @@ void FullGrow::operator()(const GAsm *self, std::vector<uint8_t> &individual) {
     individual.resize(self->individualMaxSize);
     std::generate(individual.begin(),
                   individual.end(),
-                  [&](){ return GAsmParser::base322Bytecode(dist(engine)); });
+                  [&](){ return GAsmParser::base322Bytecode(dist(engine));}
+    );
 }
 
 void TreeGrow::operator()(const GAsm *self, std::vector<uint8_t> &individual) {

@@ -1,6 +1,5 @@
 #include <vector>
 #include <iostream>
-#include <ntdef.h>
 #include <profileapi.h>
 #include "GAsmParser.h"
 #include "GAsmInterpreter.h"
@@ -42,8 +41,8 @@ void CppvsGAsm() {
 
     // parameters
     double fibCount = 1000.0;
-    double* inputs = new double[]{fibCount};
-    size_t registerLength = 2;
+    double* inputs = new double[]{fibCount}; // NOLINT
+    constexpr size_t registerLength = 2;
     double regs[registerLength]; memset(regs, 0, sizeof(regs));
     size_t maxProcessTime = 100000;
     double (*cng)() = +[](){ return 0.0; };

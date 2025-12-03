@@ -99,6 +99,31 @@ project(GAsm)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# TODO testing
+#set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL$<$<CONFIG:Debug>:Debug>")
+#add_compile_options(/std:c++latest)
+if (MSVC)
+    # Tell the Windows SDK which architecture we are building for,
+    # otherwise ntdef.h/winnt.h can emit "No Target Architecture".
+    add_compile_definitions(_AMD64_)
+endif()
+
+
+# -----------------------------------------------
+# Build options
+# -----------------------------------------------
+option(BUILD_PYTHON "Build Python extension module" OFF)
+option(BUILD_EXAMPLES "Build C++ example CLI" ON)
+
+# -----------------------------------------------
+# Python package
+# -----------------------------------------------
+if(NOT BUILD_PYTHON)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Module)
+    include_directories(${Python3_INCLUDE_DIRS})
+endif()
 
 include(FetchContent)
 
@@ -162,6 +187,9 @@ if (BUILD_PYTHON)
             gasm/include/GAsmInterpreter.h
             gasm/src/GAsmCompiler.cpp
     )
+
+    target_compile_options(GasmPython PRIVATE /std:c++20)
+
 
     # Fix name so Python can import it: gasm.pyd or gasm.so
     set_target_properties(GasmPython PROPERTIES

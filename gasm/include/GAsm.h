@@ -5,6 +5,7 @@
 #ifndef GASM_GASM_H
 #define GASM_GASM_H
 
+
 unsigned int operator ""_pop_size(unsigned long long int);
 unsigned int operator ""_ind_size(unsigned long long int);
 double operator ""_p_mut(long double);
@@ -92,7 +93,7 @@ public:
     SelectionFunction* selectionFunction = new TournamentSelection(2);
     CrossoverFunction* crossoverFunction = new OnePointCrossover();
     MutationFunction* mutationFunction = new HardMutation();
-    GrowFunction* growFunction = new TreeGrow(3);
+    GrowFunction* growFunction = new FullGrow();//new TreeGrow(3);
 };
 
 
