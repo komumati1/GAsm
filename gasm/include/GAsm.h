@@ -43,6 +43,8 @@ public:
     [[nodiscard]] const std::vector<std::vector<uint8_t>>& getPopulation() const;
     [[nodiscard]] const std::vector<double>& getFitness() const;
     [[nodiscard]] const std::vector<double>& getRank() const;
+    [[nodiscard]] const double& getFitness(size_t i) const;
+    [[nodiscard]] const double& getRank(size_t i) const;
     [[nodiscard]] const gen_fun_t& getCNG() const;
     void setCNG(const gen_fun_t& cng_);
     [[nodiscard]] const gen_fun_t& getRNG() const;
@@ -80,7 +82,7 @@ public:
     ~GAsm();
 
     // progress saving methods
-//    void makeCheckpoint();
+//    void makeCheckpoint(); TODO
     void save2File(const std::string& filename);
 
     // evolution methods and attributes
@@ -93,7 +95,39 @@ public:
     SelectionFunction* selectionFunction = new TournamentSelection(2);
     CrossoverFunction* crossoverFunction = new OnePointCrossover();
     MutationFunction* mutationFunction = new HardMutation();
-    GrowFunction* growFunction = new FullGrow();//new TreeGrow(3);
+    GrowFunction* growFunction = new FullGrow();
+
+//    std::unique_ptr<FitnessFunction> fitnessFunction = std::make_unique<Fitness>();
+//    std::unique_ptr<SelectionFunction> selectionFunction = std::make_unique<TournamentSelection>(2);
+//    std::unique_ptr<CrossoverFunction> crossoverFunction = std::make_unique<OnePointCrossover>();
+//    std::unique_ptr<MutationFunction> mutationFunction = std::make_unique<HardMutation>();
+//    std::unique_ptr<GrowFunction> growFunction = std::make_unique<FullGrow>();
+
+//    void setFitnessFunction(std::unique_ptr<FitnessFunction> f) {
+//        fitnessFunction_ = std::move(f);
+//    }
+//
+//    void setSelectionFunction(std::unique_ptr<SelectionFunction> s) {
+//        selectionFunction_ = std::move(s);
+//    }
+//
+//    void setCrossoverFunction(std::unique_ptr<CrossoverFunction> c) {
+//        crossoverFunction_ = std::move(c);
+//    }
+//
+//    void setMutationFunction(std::unique_ptr<MutationFunction> m) {
+//        mutationFunction_ = std::move(m);
+//    }
+//
+//    void setGrowFunction(std::unique_ptr<GrowFunction> g) {
+//        growFunction_ = std::move(g);
+//    }
+//
+//    FitnessFunction& fitness() { return *fitnessFunction_; }
+//    SelectionFunction& selection() { return *selectionFunction_; }
+//    CrossoverFunction& crossover() { return *crossoverFunction_; }
+//    MutationFunction& mutation() { return *mutationFunction_; }
+//    GrowFunction& grow() { return *growFunction_; }
 };
 
 

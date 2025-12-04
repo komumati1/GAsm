@@ -41,6 +41,36 @@ public:
     size_t operator()(const GAsm* self) override;
 };
 
+class RouletteSelection : public SelectionFunction {
+public:
+    explicit RouletteSelection() {}
+    size_t operator()(const GAsm* self) override;
+};
+
+class RankSelection : public SelectionFunction {
+public:
+    explicit RankSelection() {}
+    size_t operator()(const GAsm* self) override;
+};
+
+class TruncationSelection : public SelectionFunction {
+private:
+    double _percent;  // e.g. 0.1 = top 10%
+public:
+    explicit TruncationSelection(double percent) noexcept : _percent(percent) {}
+    size_t operator()(const GAsm* self) override;
+};
+
+class BoltzmannSelection : public SelectionFunction {
+private:
+    double _temperature;
+public:
+    explicit BoltzmannSelection(double T) noexcept : _temperature(T) {}
+    size_t operator()(const GAsm* self) override;
+};
+
+
+
 class CrossoverFunction {
 public:
     virtual ~CrossoverFunction() = default;

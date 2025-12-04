@@ -1,6 +1,3 @@
-//
-// Created by mateu on 26.11.2025.
-//
 
 #include "GAsm.h"
 
@@ -15,7 +12,10 @@ public:
             std::vector<double> input = self->inputs[i];
             const std::vector<double>& target = self->targets[i];
             avgTime += (double)self->run(input);
-            score += fabs(input[0] - target[0]); // TODO handle NaN
+            score += fabs(input[0] - target[0]);
+
+            double diff = input[0] - target[0];
+            score += std::isfinite(diff) ? std::fabs(diff) : 1e1;
         }
         avgTime /= (double)self->inputs.size();
         return {score, avgTime};
@@ -35,28 +35,11 @@ void fibEvolution() {
     gasm.mutationProbability = 0.2;
     // functions
 //    gasm.fitnessFunction = new FibFitness();
-//    gasm.crossoverFunction = new UniformPointCrossover();
-//    gasm.selectionFunction = new TournamentSelection(3);
-//    gasm.growFunction = new FullGrow();
-//    gasm.mutationFunction = new HardMutation();
-
-    std::vector<uint8_t> program = {
-            MOV_R_A,
-            INC,
-            MOV_A_P,
-            MOV_R_A,
-            LOP_A,
-            DEC,
-            MOV_A_R,
-            INC,
-            ADD_R,
-            INC,
-            MOV_R_A,
-            MOV_A_P,
-            END,
-            MOV_A_R,
-            MOV_I_A
-    };
+    gasm.crossoverFunction = new UniformPointCrossover();
+    gasm.selectionFunction = new TournamentSelection(3);
+//    gasm.selectionFunction = new BoltzmannSelection(3);
+    gasm.growFunction = new TreeGrow(3);
+    gasm.mutationFunction = new HardMutation();
 
     // input and target vectors
     std::vector<std::vector<double>> inputs = {
@@ -71,5 +54,5 @@ void fibEvolution() {
     // evolution
     gasm.evolve(inputs, targets);
     // save
-    gasm.save2File("../data/fib2.json");
+    gasm.save2File("../../../data/fib3.json");
 }

@@ -11,6 +11,7 @@
 #include <iostream>
 #include <thread>
 #include <cfloat>
+#include <boost/multiprecision/cpp_bin_float.hpp>
 
 GAsm::GAsm() : _runner(1) {
     _runner.setRegisterLength(_registerLength);
@@ -129,8 +130,14 @@ void GAsm::save2File(const std::string& filename) {
 
     // Write to file
     std::ofstream f(filename);
+    if (!f.is_open()) {
+        std::cerr << "FAILED to open file: " << filename << "\n";
+        return;
+    }
+    std::cout << "Writing to file: " << std::filesystem::absolute(filename) << std::endl;
     f << j.dump(4);   // pretty print
     f.close();
+    std::cout << "File written successfully!" << std::endl;
 }
 
 static void printHeader(const GAsm* const self) {
@@ -144,12 +151,12 @@ static void printHeader(const GAsm* const self) {
 }
 
 double GAsm::printGenerationStats(int generation) {
-    double avgFitness = 0.0;
+    boost::multiprecision::cpp_bin_float_quad avgFitness = 0.0;
     double bestFitness = minimize ? DBL_MAX: -DBL_MAX; // NOLINT
     double avgSize = 0.0;
     size_t bestIndividualIndex = 0;
     for (int i = 0; i < _population.size(); i++) {
-        avgFitness += _isnan(_fitness[i]) ? 0 : _fitness[i];
+        avgFitness += std::isfinite(_fitness[i]) ? _fitness[i] : 0;
         avgSize += (double)_population[i].size();
         if (minimize ? _fitness[i] < bestFitness : _fitness[i] > bestFitness) {
             bestFitness = _fitness[i];
@@ -159,10 +166,11 @@ double GAsm::printGenerationStats(int generation) {
     avgFitness /= (double)_population.size();
     avgSize /= (double)_population.size();
     bestIndividual = _population[bestIndividualIndex];
-    hist.add(generation, bestFitness, avgFitness, avgSize, bestIndividual);
+    auto convertedAvgFitness = (double)avgFitness;
+    hist.add(generation, bestFitness, convertedAvgFitness, avgSize, bestIndividual);
     std::cout << "Generation: " << generation
-              << ", Avg Fitness: " << avgFitness
-              << ", Best Fitness: " << bestFitness
+              << ", Avg Fitness: " << std::scientific << convertedAvgFitness
+              << ", Best Fitness: " << std::fixed << std::setprecision(2) << bestFitness
               << ", Avg Size: " << avgSize << std::endl;
     return bestFitness;
 }
@@ -283,6 +291,14 @@ const std::vector<double> &GAsm::getFitness() const {
 
 const std::vector<double> &GAsm::getRank() const {
     return _rank;
+}
+
+const double &GAsm::getFitness(size_t i) const {
+    return _fitness[i];
+}
+
+const double &GAsm::getRank(size_t i) const {
+    return _rank[i];
 }
 
 const gen_fun_t& GAsm::getCNG() const {

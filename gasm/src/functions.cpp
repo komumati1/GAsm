@@ -21,10 +21,7 @@ std::pair<double, double> Fitness::operator()(GAsm *self, const std::vector<uint
         avgTime += (double)self->run(input);
 
         double diff = input[0] - target[0];
-        if (std::isnan(diff))
-            score += 1e1;      // TODO positive penalty (change when is minimum)
-        else
-            score += std::fabs(diff);
+        score += std::isfinite(diff) ? std::fabs(diff) : 1e1; // TODO define a penalty
     }
     avgTime /= (double)self->inputs.size();
     return {score, avgTime};
@@ -37,12 +34,126 @@ size_t TournamentSelection::operator()(const GAsm *self) {
     size_t bestIndex = dist(rng);
     for (unsigned int i = 1; i < _tournamentSize; i++) {
         size_t idx = dist(rng);
-        if (selectMinimal ? self->getFitness()[idx] < self->getFitness()[bestIndex] : self->getFitness()[idx] > self->getFitness()[bestIndex]) {
+        if (selectMinimal ? self->getFitness(idx) < self->getFitness(bestIndex) : self->getFitness(idx) > self->getFitness(bestIndex)) {
             bestIndex = idx;
         }
     }
     return bestIndex;
 }
+
+size_t RouletteSelection::operator()(const GAsm* self) {
+    static thread_local std::mt19937 rng(std::random_device{}());
+    const auto& fitness = self->getFitness();
+
+    std::vector<double> weights(fitness.size());
+
+    // Convert fitness to weights
+    if (selectMinimal) {
+        // Lower fitness = better, so invert
+        for (size_t i = 0; i < fitness.size(); i++)
+            weights[i] = 1.0 / (fitness[i] + 1e-12);
+    } else {
+        // Higher fitness = better
+        for (size_t i = 0; i < fitness.size(); i++)
+            weights[i] = fitness[i] + 1e-12;
+    }
+
+    double total = std::accumulate(weights.begin(), weights.end(), 0.0);
+    std::uniform_real_distribution<double> dist(0.0, total);
+
+    double r = dist(rng);
+    double acc = 0.0;
+
+    for (size_t i = 0; i < weights.size(); i++) {
+        acc += weights[i];
+        if (acc >= r)
+            return i;
+    }
+
+    return weights.size() - 1; // fallback
+}
+
+size_t RankSelection::operator()(const GAsm* self) {
+    static thread_local std::mt19937 rng(std::random_device{}());
+    size_t n = self->getPopulation().size();
+
+    // Lower rank = better if minimizing
+    std::vector<double> weights(n);
+
+    for (size_t i = 0; i < n; i++) {
+        double rank = self->getRank(i); // 0 = best
+        weights[i] = selectMinimal ? ((double)n - rank) : (rank + 1);
+    }
+
+    double total = std::accumulate(weights.begin(), weights.end(), 0.0);
+    std::uniform_real_distribution<double> dist(0.0, total);
+
+    double r = dist(rng);
+    double acc = 0.0;
+
+    for (size_t i = 0; i < n; i++) {
+        acc += weights[i];
+        if (acc >= r)
+            return i;
+    }
+
+    return n - 1;
+}
+
+size_t TruncationSelection::operator()(const GAsm* self) {
+    static thread_local std::mt19937 rng(std::random_device{}());
+    size_t n = self->getPopulation().size();
+
+    size_t topCount = std::max<size_t>(1, size_t((double)n * _percent));
+
+    // Choose a random individual from the top X%
+    std::uniform_int_distribution<size_t> dist(0, topCount - 1);
+
+    // Rank-based truncation:
+    // rank=0 is the best
+    size_t selectedRank = dist(rng);
+
+    // Find index with that rank
+    for (size_t i = 0; i < n; i++)
+        if (std::fabs(self->getRank(i) - (double)selectedRank) <= 1e-12)
+            return i;
+
+    return 0; // fallback (should never happen)
+}
+
+size_t BoltzmannSelection::operator()(const GAsm* self) {
+    static thread_local std::mt19937 rng(std::random_device{}());
+    const auto& fitness = self->getFitness();
+
+    std::vector<double> weights(fitness.size());
+
+    for (size_t i = 0; i < fitness.size(); i++) {
+        double f = fitness[i];
+
+        if (selectMinimal) {
+            // minimize fitness → lower is better
+            weights[i] = std::exp(-f / _temperature);
+        } else {
+            // maximize fitness → higher is better
+            weights[i] = std::exp(f / _temperature);
+        }
+    }
+
+    double total = std::accumulate(weights.begin(), weights.end(), 0.0);
+    std::uniform_real_distribution<double> dist(0.0, total);
+
+    double r = dist(rng);
+    double acc = 0.0;
+
+    for (size_t i = 0; i < weights.size(); i++) {
+        acc += weights[i];
+        if (acc >= r)
+            return i;
+    }
+
+    return weights.size() - 1;
+}
+
 
 void OnePointCrossover::operator()(const GAsm *self, std::vector<uint8_t> &worstIndividual,
                                    const std::vector<uint8_t> &bestIndividual1,
@@ -202,7 +313,7 @@ void TreeGrow::grow(std::vector<uint8_t> &individual, size_t maxSize) { //NOLINT
 
         for (int i = 0; i < childCount; i++) {
 
-            if (individual.size() + 1 >= maxSize) {
+            if (individual.size() + 2 >= maxSize) { // space for 2 additional instructions
                 break;
             } else {
                 _depth--;

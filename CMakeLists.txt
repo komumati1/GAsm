@@ -145,6 +145,49 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(xbyak)
 
 # ----------------------------
+# Boost arbitrary precision
+# ----------------------------
+foreach(boost_lib IN ITEMS
+        config
+        assert
+        core
+        static_assert
+        integer
+        throw_exception
+        predef
+        type_traits
+        mpl
+        rational
+        multiprecision
+)
+    FetchContent_Declare(
+            boost_${boost_lib}
+            GIT_REPOSITORY https://github.com/boostorg/${boost_lib}.git
+            GIT_TAG boost-1.84.0               # choose a version you want
+    )
+    FetchContent_MakeAvailable(boost_${boost_lib})
+endforeach()
+
+# Add include dirs for all Boost modules
+foreach(boost_lib IN ITEMS
+        config
+        assert
+        core
+        static_assert
+        integer
+        throw_exception
+        predef
+        type_traits
+        mpl
+        rational
+        multiprecision
+)
+    include_directories(
+            ${boost_${boost_lib}_SOURCE_DIR}/include
+    )
+endforeach()
+
+# ----------------------------
 # Executable build
 # ----------------------------
 if (BUILD_EXAMPLES)
