@@ -10,33 +10,33 @@
 #include "GAsmInterpreter.h"
 
 GAsmInterpreter::GAsmInterpreter(const std::vector<uint8_t>& program, size_t registerLength)
-  : _program(&program),
-    _registers(registerLength),
-    _compiled(nullptr),
-    _code(1, Xbyak::AutoGrow) {
+  : program_(&program),
+    registers_(registerLength),
+    compiled_(nullptr),
+    code_(1, Xbyak::AutoGrow) {
     if (registerLength == 0) {
         throw std::invalid_argument("Register length should be greater than 0");
     }
 }
 
 GAsmInterpreter::GAsmInterpreter(size_t registerLength)
-  : _program(nullptr),
-    _registers(registerLength),
-    _compiled(nullptr),
-    _code(1, Xbyak::AutoGrow) {
+  : program_(nullptr),
+    registers_(registerLength),
+    compiled_(nullptr),
+    code_(1, Xbyak::AutoGrow) {
     if (registerLength == 0) {
         throw std::invalid_argument("Register length should be greater than 0");
     }
 }
 
 void GAsmInterpreter::setProgram(const std::vector<uint8_t>& program) {
-    _program = &program;
-    _code.reset();
-    _compiled = nullptr;
+    program_ = &program;
+    code_.reset();
+    compiled_ = nullptr;
 }
 
 void GAsmInterpreter::setRegisterLength(size_t registerLength) {
-    _registers.resize(registerLength);
+    registers_.resize(registerLength);
 }
 
 size_t GAsmInterpreter::run(std::vector<double> &inputs, size_t maxProcessTime) {
@@ -51,12 +51,12 @@ size_t GAsmInterpreter::runInterpreter(std::vector<double> &inputs, size_t maxPr
     if (inputs.empty()) {
         throw std::invalid_argument("Input length should be greater than 0");
     }
-    if (_program == nullptr) {
+    if (program_ == nullptr) {
         throw std::invalid_argument("Program is not set.");
     }
-    std::fill(_registers.begin(), _registers.end(), 0);
+    std::fill(registers_.begin(), registers_.end(), 0);
     size_t inputLength = inputs.size();
-    size_t registerLength = _registers.size();
+    size_t registerLength = registers_.size();
     size_t P = 0;          // Program pointer
     double A = 0;          // Accumulator
     std::vector<size_t> pointerStack(0);
@@ -65,8 +65,8 @@ size_t GAsmInterpreter::runInterpreter(std::vector<double> &inputs, size_t maxPr
     size_t processTime = 0;
     bool skipToEnd = false;
 
-    for (size_t i = 0; i < _program->size(); i++) {
-        const uint8_t& opcode = _program->operator[](i);
+    for (size_t i = 0; i < program_->size(); i++) {
+        const uint8_t& opcode = program_->operator[](i);
         switch (opcode) {
 
             // ===== MOV =====
@@ -79,7 +79,7 @@ size_t GAsmInterpreter::runInterpreter(std::vector<double> &inputs, size_t maxPr
                 break;
 
             case MOV_A_R:  // A = R[P]
-                A = _registers[P % registerLength];
+                A = registers_[P % registerLength];
                 break;
 
             case MOV_A_I:  // A = I[P]
@@ -87,7 +87,7 @@ size_t GAsmInterpreter::runInterpreter(std::vector<double> &inputs, size_t maxPr
                 break;
 
             case MOV_R_A:  // R = A
-                _registers[P % registerLength] = A;
+                registers_[P % registerLength] = A;
                 break;
 
             case MOV_I_A:  // I[P] = A
@@ -95,13 +95,13 @@ size_t GAsmInterpreter::runInterpreter(std::vector<double> &inputs, size_t maxPr
                 break;
 
             // ===== ARITHMETIC (R) =====
-            case ADD_R: A += _registers[P % registerLength]; break;
-            case SUB_R: A -= _registers[P % registerLength]; break;
-            case DIV_R: A /= _registers[P % registerLength]; break;
-            case MUL_R: A *= _registers[P % registerLength]; break;
-            case SIN_R: A = sin(_registers[P % registerLength]); break;
-            case COS_R: A = cos(_registers[P % registerLength]); break;
-            case EXP_R: A = exp(_registers[P % registerLength]); break;
+            case ADD_R: A += registers_[P % registerLength]; break;
+            case SUB_R: A -= registers_[P % registerLength]; break;
+            case DIV_R: A /= registers_[P % registerLength]; break;
+            case MUL_R: A *= registers_[P % registerLength]; break;
+            case SIN_R: A = sin(registers_[P % registerLength]); break;
+            case COS_R: A = cos(registers_[P % registerLength]); break;
+            case EXP_R: A = exp(registers_[P % registerLength]); break;
 
 
             // ===== ARITHMETIC (I) =====
@@ -118,7 +118,7 @@ size_t GAsmInterpreter::runInterpreter(std::vector<double> &inputs, size_t maxPr
             case INC: P++; break;
             case DEC: P--; break;
             case RES: P = 0; break;
-            case SET: A = cng(); break;
+            case SET: A = (*cng_)(); break;
 
 
             // ===== LOOPS =====
@@ -159,7 +159,7 @@ size_t GAsmInterpreter::runInterpreter(std::vector<double> &inputs, size_t maxPr
                 break;
 
             case JMP_R:
-                if (A >= _registers[P % registerLength]) {
+                if (A >= registers_[P % registerLength]) {
                     // skip till the END symbol
                     skipToEnd = true;
                 }
@@ -211,7 +211,7 @@ size_t GAsmInterpreter::runInterpreter(std::vector<double> &inputs, size_t maxPr
                 break;
 
             case RNG:
-                A = rng();
+                A = (*rng_)();
                 break;
 
 
@@ -224,8 +224,8 @@ size_t GAsmInterpreter::runInterpreter(std::vector<double> &inputs, size_t maxPr
             break;
         }
         if (skipToEnd) {
-            for (int endCounter = 0; i < _program->size(); i++) {
-                const uint8_t &instruction = _program->operator[](i);
+            for (int endCounter = 0; i < program_->size(); i++) {
+                const uint8_t &instruction = program_->operator[](i);
                 if (FOR <= instruction && instruction <= JMP_P) { // instruction with END
                     endCounter++;
                 } else if (instruction == END) {
@@ -246,13 +246,13 @@ size_t GAsmInterpreter::runCompiled(std::vector<double> &inputs, size_t maxProce
     if (inputs.empty()) {
         throw std::invalid_argument("Input length should be greater than 0");
     }
-    if (_program == nullptr) {
+    if (program_ == nullptr) {
         throw std::invalid_argument("Program is not set.");
     }
-    if (_compiled == nullptr) {
-        _compiled = compile();
+    if (compiled_ == nullptr) {
+        compiled_ = compile();
     }
-    std::fill(_registers.begin(), _registers.end(), 0);
-    return _compiled(inputs.data(), inputs.size(), _registers.data(), _registers.size(), cng, rng, maxProcessTime);
+    std::fill(registers_.begin(), registers_.end(), 0);
+    return compiled_(inputs.data(), inputs.size(), registers_.data(), registers_.size(), (*cng_), (*rng_), maxProcessTime);
 }
 

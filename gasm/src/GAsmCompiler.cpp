@@ -34,28 +34,28 @@ run_fn_t GAsmInterpreter::compile() {
     #define PI r12
     // r13 -> saved P % registerLength (size_t)
     #define PR r13
-    // QWORD PTR [rbp - 40] -> constants function<double()>
-    #define constants qword[rbp - 40]
-    // QWORD PTR [rbp - 48] -> rng function<double()>
-    #define rng qword[rbp - 48]
-    // rrbx -> P (size_t)
+    // QWORD PTR [rbp - 48] -> constants function<double()>
+    #define constants qword[rbp - 48]
+    // QWORD PTR [rbp - 56] -> rng function<double()>
+    #define rng qword[rbp - 56]
+    // rbx -> P (size_t)
     #define P rbx
-    // r13 -> saved inputs pointer (double*)
+    // r14 -> saved inputs pointer (double*)
     #define inputs r14
-    // QWORD PTR [rbp - 56] -> saved input length (size_t)
-    #define inputLength qword[rbp - 56]
-    // r14 -> saved registers pointer (double*)
+    // QWORD PTR [rbp - 64] -> saved input length (size_t)
+    #define inputLength qword[rbp - 64]
+    // r15 -> saved registers pointer (double*)
     #define registers r15
-    // QWORD PTR [rbp - 64] -> saved registers length (size_t)
-    #define registerLength qword[rbp - 64]
-    // QWORD PTR [rbp - 72] -> process time (size_t)
-    #define processTime qword[rbp - 72]
-    // QWORD PTR [rbp - 80] -> max process time
-    #define maxProcessTime qword[rbp - 80]
+    // QWORD PTR [rbp - 72] -> saved registers length (size_t)
+    #define registerLength qword[rbp - 72]
+    // QWORD PTR [rbp - 80] -> process time (size_t)
+    #define processTime qword[rbp - 80]
+    // QWORD PTR [rbp - 88] -> max process time
+    #define maxProcessTime qword[rbp - 88]
     // dynamicStackSize -> the program could end in a for loop
     // so we have to keep track of the stack size
     // to later pop the correct amount
-    #define dynamicStackSize qword[rbp - 88]
+    #define dynamicStackSize qword[rbp - 96]
     // xmm0 -> A (accumulator) (double)
     #define A xmm0
     // we push 5 registers, so the stack starts at 40
@@ -64,26 +64,26 @@ run_fn_t GAsmInterpreter::compile() {
     #define LOCALS 96
     //
     // Registers free to use in the program
-    // xmm1-15 - for floating numbers
+    // xmm1-5 - for floating numbers
     // rax, rdx, rcx
 
     // --- SETUP ---
     // push new frame pointer
-    _code.push(rbp);
+    code_.push(rbp);
     // create new stack pointer
-    _code.mov(rbp, rsp);
+    code_.mov(rbp, rsp);
 
     // save caller's rbx, r12-r15, which we'll use
     // this changes the stack we have to be careful
-    _code.push(rbx);
-    _code.push(r12);
-    _code.push(r13);
-    _code.push(r14);
-    _code.push(r15);
+    code_.push(rbx);
+    code_.push(r12);
+    code_.push(r13);
+    code_.push(r14);
+    code_.push(r15);
 
     // reserve beginning of the stack for our variables
     // WARNING!!! change if adding more locals
-    _code.sub(rsp, LOCALS); // reserve stack of locals
+    code_.sub(rsp, LOCALS); // reserve stack of locals
 
     // move function arguments to appropriate registers
 #if defined(__unix__)
@@ -95,14 +95,14 @@ run_fn_t GAsmInterpreter::compile() {
 // 5: constants       -> r8
 // 6: rng             -> r9
 // 7: maxProcessTime  -> [rsp+8] at entry -> [rbp+16] after push rbp/mov rbp,rsp
-    _code.mov(inputs, rdi);
-    _code.mov(inputLength, rsi);
-    _code.mov(registers, rdx);
-    _code.mov(registerLength, rcx);
-    _code.mov(constants, r8);  // constants
-    _code.mov(rng, r9);        // rng;
-    _code.mov(rax, qword[rbp + 16]);
-    _code.mov(maxProcessTime, rax); // max process time;
+    code_.mov(inputs, rdi);
+    code_.mov(inputLength, rsi);
+    code_.mov(registers, rdx);
+    code_.mov(registerLength, rcx);
+    code_.mov(constants, r8);  // constants
+    code_.mov(rng, r9);        // rng;
+    code_.mov(rax, qword[rbp + 16]);
+    code_.mov(maxProcessTime, rax); // max process time;
 #elif defined(_WIN64)
 // Microsoft x64 ABI:
 // 1: inputs          -> rcx
@@ -113,27 +113,27 @@ run_fn_t GAsmInterpreter::compile() {
 // 6: rng             -> [rsp+48]
 // 7: maxProcessTime  -> [rsp+56]
 // After push rbp/mov rbp,rsp those become +48, +56, +64 respectively.
-    _code.mov(inputs, rcx);
-    _code.mov(inputLength, rdx);
-    _code.mov(registers, r8);
-    _code.mov(registerLength, r9);
-    _code.mov(rax, qword[rbp + 48]);
-    _code.mov(constants, rax);      // constants
-    _code.mov(rax, qword[rbp + 56]);
-    _code.mov(rng, rax);            // rng;
-    _code.mov(rax, qword[rbp + 64]);
-    _code.mov(maxProcessTime, rax); // max process time;
+    code_.mov(inputs, rcx);
+    code_.mov(inputLength, rdx);
+    code_.mov(registers, r8);
+    code_.mov(registerLength, r9);
+    code_.mov(rax, qword[rbp + 48]);
+    code_.mov(constants, rax);      // constants
+    code_.mov(rax, qword[rbp + 56]);
+    code_.mov(rng, rax);            // rng;
+    code_.mov(rax, qword[rbp + 64]);
+    code_.mov(maxProcessTime, rax); // max process time;
 #else
 #   error "Unsupported platform / calling convention"
 #endif
 
     // reset P, PI, PR, A and processTime
-    _code.xor_(P, P);            // P = 0
-    _code.pxor(A, A);            // A = 0.0
-    _code.xor_(PI, PI);          // PI = 0
-    _code.xor_(PR, PR);          // PR = 0
-    _code.mov(processTime, 0); // processTime = 0;
-    _code.mov(dynamicStackSize, 0); // dynamicStackSize = 0;
+    code_.xor_(P, P);            // P = 0
+    code_.pxor(A, A);            // A = 0.0
+    code_.xor_(PI, PI);          // PI = 0
+    code_.xor_(PR, PR);          // PR = 0
+    code_.mov(processTime, 0); // processTime = 0;
+    code_.mov(dynamicStackSize, 0); // dynamicStackSize = 0;
 
     // prepare end program label
     Xbyak::Label endProgram;
@@ -143,385 +143,385 @@ run_fn_t GAsmInterpreter::compile() {
     // TODO check process time every 10 instructions and on loops
 
     // --- COMPILATION ---
-    for (int i = 0; i < _program->size(); i++) {
-        const uint8_t& opcode = _program->operator[](i);
+    for (int i = 0; i < program_->size(); i++) {
+        const uint8_t& opcode = program_->operator[](i);
 
         switch (opcode) {
             case MOV_P_A: {
                 // p = (size_t) A;
                 // honestly I don't know why is it like this
                 // it's copied from a C++ compiler
-                _code.movsd(xmm1, A); // save A to xmm1
-                _code.pxor(xmm2, xmm2);  // set xmm2 to 0
-                _code.comisd(xmm1, xmm2); // compare xmm1 < xmm2, A < 0
+                code_.movsd(xmm1, A); // save A to xmm1
+                code_.pxor(xmm2, xmm2);  // set xmm2 to 0
+                code_.comisd(xmm1, xmm2); // compare xmm1 < xmm2, A < 0
                 Xbyak::Label lessThan0;
-                _code.jnb(lessThan0); // if A < 0: goto handle negative
+                code_.jnb(lessThan0); // if A < 0: goto handle negative
                 // case: A is positive, A >= 0
-                _code.cvttsd2si(P, A); // convert A to size_t and save to P
+                code_.cvttsd2si(P, A); // convert A to size_t and save to P
                 Xbyak::Label endConversion;
-                _code.jmp(endConversion); // goto end
+                code_.jmp(endConversion); // goto end
                 // case: A is negative, A < 0
-                _code.L(lessThan0);
-                _code.subsd(A, xmm2);  // A = A - 0, it's to set the flags
-                _code.cvttsd2si(P, A); // convert A to size_t and save to P
-                _code.mov(rax, 0x8000000000000000); // bit magic
-                _code.xor_(P, rax);    // make it non negative
+                code_.L(lessThan0);
+                code_.subsd(A, xmm2);  // A = A - 0, it's to set the flags
+                code_.cvttsd2si(P, A); // convert A to size_t and save to P
+                code_.mov(rax, 0x8000000000000000); // bit magic
+                code_.xor_(P, rax);    // make it non negative
                 // end conversion
-                _code.L(endConversion);
+                code_.L(endConversion);
                 // update P % registerLength
-                _code.mov(rax, P);         // move P to rax
-                _code.xor_(edx, edx);      // fill lower rdx with 0
-                _code.div(registerLength); // division by length
-                _code.mov(PR, rdx);        // remainder is in rdx
+                code_.mov(rax, P);         // move P to rax
+                code_.xor_(edx, edx);      // fill lower rdx with 0
+                code_.div(registerLength); // division by length
+                code_.mov(PR, rdx);        // remainder is in rdx
                 // update P % inputLength
-                _code.mov(rax, P);      // move P to rax
-                _code.xor_(edx, edx);   // fill lower rdx with 0
-                _code.div(inputLength); // division by length
-                _code.mov(PI, rdx);     // remainder is in rdx
+                code_.mov(rax, P);      // move P to rax
+                code_.xor_(edx, edx);   // fill lower rdx with 0
+                code_.div(inputLength); // division by length
+                code_.mov(PI, rdx);     // remainder is in rdx
                 break;
             }
             case MOV_A_P: {
                 // A = (double) P
-                _code.test(P, P);    // check if the value will fit in 64-bit number
+                code_.test(P, P);    // check if the value will fit in 64-bit number
                 Xbyak::Label doesNotFit;
-                _code.js(doesNotFit); // special case if the value won't fit
+                code_.js(doesNotFit); // special case if the value won't fit
                 // simple conversion the value will fit
-                _code.pxor(A, A);     // clear A
-                _code.cvtsi2sd(A, P); // convert A = (double) P
+                code_.pxor(A, A);     // clear A
+                code_.cvtsi2sd(A, P); // convert A = (double) P
                 Xbyak::Label endConversion;
-                _code.jmp(endConversion);
+                code_.jmp(endConversion);
                 // complex conversion if the value won't fit
                 // this is just some compiler magic and IEEE 754 standard
-                _code.L(doesNotFit);
-                _code.mov(rax, P);
-                _code.mov(rdx, rax);
-                _code.shr(rdx, 1);
-                _code.and_(eax, 1);
-                _code.or_(rdx, rax);
-                _code.pxor(A, A);
-                _code.cvtsi2sd(A, rdx);
-                _code.addsd(A, A);
+                code_.L(doesNotFit);
+                code_.mov(rax, P);
+                code_.mov(rdx, rax);
+                code_.shr(rdx, 1);
+                code_.and_(eax, 1);
+                code_.or_(rdx, rax);
+                code_.pxor(A, A);
+                code_.cvtsi2sd(A, rdx);
+                code_.addsd(A, A);
                 // end conversion
-                _code.L(endConversion);
+                code_.L(endConversion);
                 break;
             }
             case MOV_A_R: {
                 // A = registers[P % registerLength]
-                _code.movsd(A, ptr[registers + PR * 8]); // assign it to A
+                code_.movsd(A, ptr[registers + PR * 8]); // assign it to A
                 break;
             }
             case MOV_A_I: {
                 // A = inputs[P % inputLength]
-                _code.movsd(A, ptr[inputs + PI * 8]); // assign it to A
+                code_.movsd(A, ptr[inputs + PI * 8]); // assign it to A
                 break;
             }
             case MOV_R_A: {
                 // registers[P % registerLength] = A
-                _code.movsd(ptr[registers + PR * 8], A); // assign A to it
+                code_.movsd(ptr[registers + PR * 8], A); // assign A to it
                 break;
             }
             case MOV_I_A: {
                 // inputs[P % inputLength] = A
-                _code.movsd(ptr[inputs + PI * 8], A); // assign A to it
+                code_.movsd(ptr[inputs + PI * 8], A); // assign A to it
                 break;
             }
             case ADD_R: {
-                // A += _registers[P % registerLength];
-                _code.addsd(A, ptr[registers + PR * 8]); // add to A
+                // A += registers_[P % registerLength];
+                code_.addsd(A, ptr[registers + PR * 8]); // add to A
                 break;
             }
             case SUB_R: {
-                // A -= _registers[P % registerLength];
-                _code.subsd(A, ptr[registers + PR * 8]); // sub from A
+                // A -= registers_[P % registerLength];
+                code_.subsd(A, ptr[registers + PR * 8]); // sub from A
                 break;
             }
             case DIV_R: {
-                // A /= _registers[P % registerLength];
-                _code.divsd(A, ptr[registers + PR * 8]); // div A
+                // A /= registers_[P % registerLength];
+                code_.divsd(A, ptr[registers + PR * 8]); // div A
                 break;
             }
             case MUL_R: {
-                // A *= _registers[P % registerLength];
-                _code.mulsd(A, ptr[registers + PR * 8]); // mul with A
+                // A *= registers_[P % registerLength];
+                code_.mulsd(A, ptr[registers + PR * 8]); // mul with A
                 break;
             }
             case SIN_R: {
-                // A = sin(_registers[P % registerLength]);
-                _code.movsd(A, ptr[registers + PR * 8]); // assign from pointer to A
+                // A = sin(registers_[P % registerLength]);
+                code_.movsd(A, ptr[registers + PR * 8]); // assign from pointer to A
                 // WARNING!!! ONLY ODD NUMBER OF VARIABLES CAN BE ON THE STACK
-                _code.push(P);           // save the P register, we'll use it
+                code_.push(P);           // save the P register, we'll use it
                 if (stackSize % 2 == 0) {
 #ifdef _WIN64
-                    _code.sub(rsp, 32);  // windows shadow space
+                    code_.sub(rsp, 32);  // windows shadow space
 #endif
-                    _code.mov(rax, sin_asm);
-                    _code.call(rax);     // call sin(xmm0), sin(A)
+                    code_.mov(rax, sin_asm);
+                    code_.call(rax);     // call sin(xmm0), sin(A)
 #ifdef _WIN64
-                    _code.add(rsp, 32);
+                    code_.add(rsp, 32);
 #endif
                 } else {
 #ifdef _WIN64
-                    _code.sub(rsp, 40);  // windows shadow space and stack alignment
+                    code_.sub(rsp, 40);  // windows shadow space and stack alignment
 #else
-                    _code.sub(rsp, 8);   // stack alignment
+                    code_.sub(rsp, 8);   // stack alignment
 #endif
-                    _code.mov(rax, sin_asm);
-                    _code.call(rax);  // call sin(xmm0), sin(A)
+                    code_.mov(rax, sin_asm);
+                    code_.call(rax);  // call sin(xmm0), sin(A)
 #ifdef _WIN64
-                    _code.add(rsp, 40);
+                    code_.add(rsp, 40);
 #else
-                    _code.sub(rsp, 8);
+                    code_.add(rsp, 8);
 #endif
                 }
 
-                _code.pop(P); // restore the P register
+                code_.pop(P); // restore the P register
                 break;
             }
             case COS_R: {
-                // A = cos(_registers[P % registerLength]);
-                _code.movsd(A, ptr[registers + PR * 8]); // assign from pointer to A
+                // A = cos(registers_[P % registerLength]);
+                code_.movsd(A, ptr[registers + PR * 8]); // assign from pointer to A
                 // WARNING!!! ONLY ODD NUMBER OF VARIABLES CAN BE ON THE STACK
-                _code.push(P);           // save the P register, we'll use it
+                code_.push(P);           // save the P register, we'll use it
                 if (stackSize % 2 == 0) {
 #ifdef _WIN64
-                    _code.sub(rsp, 32);  // windows shadow space
+                    code_.sub(rsp, 32);  // windows shadow space
 #endif
-                    _code.mov(rax, cos_asm);
-                    _code.call(rax);     // call cos(xmm0), cos(A)
+                    code_.mov(rax, cos_asm);
+                    code_.call(rax);     // call cos(xmm0), cos(A)
 #ifdef _WIN64
-                    _code.add(rsp, 32);
+                    code_.add(rsp, 32);
 #endif
                 } else {
 #ifdef _WIN64
-                    _code.sub(rsp, 40);  // windows shadow space and stack alignment
+                    code_.sub(rsp, 40);  // windows shadow space and stack alignment
 #else
-                    _code.sub(rsp, 8);   // stack alignment
+                    code_.sub(rsp, 8);   // stack alignment
 #endif
-                    _code.mov(rax, cos_asm);
-                    _code.call(rax);     // call cos(xmm0), cos(A)
+                    code_.mov(rax, cos_asm);
+                    code_.call(rax);     // call cos(xmm0), cos(A)
 #ifdef _WIN64
-                    _code.add(rsp, 40);
+                    code_.add(rsp, 40);
 #else
-                    _code.sub(rsp, 8);
+                    code_.add(rsp, 8);
 #endif
                 }
 
-                _code.pop(P); // restore the P register
+                code_.pop(P); // restore the P register
                 break;
             }
             case EXP_R: {
-                // A = exp(_registers[P % registerLength]);
-                _code.movsd(A, ptr[registers + PR * 8]); // assign from pointer to A
+                // A = exp(registers_[P % registerLength]);
+                code_.movsd(A, ptr[registers + PR * 8]); // assign from pointer to A
                 // WARNING!!! ONLY ODD NUMBER OF VARIABLES CAN BE ON THE STACK
-                _code.push(P);           // save the P register, we'll use it
+                code_.push(P);           // save the P register, we'll use it
                 if (stackSize % 2 == 0) {
 #ifdef _WIN64
-                    _code.sub(rsp, 32);  // windows shadow space
+                    code_.sub(rsp, 32);  // windows shadow space
 #endif
-                    _code.mov(rax, exp_asm);
-                    _code.call(rax);     // call exp(xmm0), exp(A
+                    code_.mov(rax, exp_asm);
+                    code_.call(rax);     // call exp(xmm0), exp(A
 #ifdef _WIN64
-                    _code.add(rsp, 32);
+                    code_.add(rsp, 32);
 #endif
                 } else {
 #ifdef _WIN64
-                    _code.sub(rsp, 40);  // windows shadow space and stack alignment
+                    code_.sub(rsp, 40);  // windows shadow space and stack alignment
 #else
-                    _code.sub(rsp, 8);   // stack alignment
+                    code_.sub(rsp, 8);   // stack alignment
 #endif
-                    _code.mov(rax, exp_asm);
-                    _code.call(rax);     // call exp(xmm0), exp(A
+                    code_.mov(rax, exp_asm);
+                    code_.call(rax);     // call exp(xmm0), exp(A
 #ifdef _WIN64
-                    _code.add(rsp, 40);
+                    code_.add(rsp, 40);
 #else
-                    _code.sub(rsp, 8);
+                    code_.add(rsp, 8);
 #endif
                 }
 
-                _code.pop(P); // restore the P register
+                code_.pop(P); // restore the P register
                 break;
             }
             case ADD_I: {
                 // A += _inputs[P % inputLength];
-                _code.addsd(A, ptr[inputs + PI * 8]); // add to A
+                code_.addsd(A, ptr[inputs + PI * 8]); // add to A
                 break;
             }
             case SUB_I: {
                 // A -= _inputs[P % inputLength];
-                _code.subsd(A, ptr[inputs + PI * 8]); // sub from A
+                code_.subsd(A, ptr[inputs + PI * 8]); // sub from A
                 break;
             }
             case DIV_I: {
                 // A /= _inputs[P % inputLength];
-                _code.divsd(A, ptr[inputs + PI * 8]); // div A
+                code_.divsd(A, ptr[inputs + PI * 8]); // div A
                 break;
             }
             case MUL_I: {
                 // A *= _inputs[P % inputLength];
-                _code.mulsd(A, ptr[inputs + PI * 8]); // mul with A
+                code_.mulsd(A, ptr[inputs + PI * 8]); // mul with A
                 break;
             }
             case SIN_I: {
                 // A = sin(_inputs[P % inputLength]);
-                _code.movsd(A, ptr[inputs + PI * 8]); // assign from pointer to A
+                code_.movsd(A, ptr[inputs + PI * 8]); // assign from pointer to A
                 // WARNING!!! ONLY ODD NUMBER OF VARIABLES CAN BE ON THE STACK
-                _code.push(P);           // save the P register, we'll use it
+                code_.push(P);           // save the P register, we'll use it
                 if (stackSize % 2 == 0) {
 #ifdef _WIN64
-                    _code.sub(rsp, 32);  // windows shadow space
+                    code_.sub(rsp, 32);  // windows shadow space
 #endif
-                    _code.mov(rax, sin_asm);
-                    _code.call(rax);     // call sin(xmm0), sin(A)
+                    code_.mov(rax, sin_asm);
+                    code_.call(rax);     // call sin(xmm0), sin(A)
 #ifdef _WIN64
-                    _code.add(rsp, 32);
+                    code_.add(rsp, 32);
 #endif
                 } else {
 #ifdef _WIN64
-                    _code.sub(rsp, 40);  // windows shadow space and stack alignment
+                    code_.sub(rsp, 40);  // windows shadow space and stack alignment
 #else
-                    _code.sub(rsp, 8);   // stack alignment
+                    code_.sub(rsp, 8);   // stack alignment
 #endif
-                    _code.mov(rax, sin_asm);
-                    _code.call(rax);  // call sin(xmm0), sin(A)
+                    code_.mov(rax, sin_asm);
+                    code_.call(rax);  // call sin(xmm0), sin(A)
 #ifdef _WIN64
-                    _code.add(rsp, 40);
+                    code_.add(rsp, 40);
 #else
-                    _code.sub(rsp, 8);
+                    code_.add(rsp, 8);
 #endif
                 }
 
-                _code.pop(P); // restore the P register
+                code_.pop(P); // restore the P register
                 break;
             }
             case COS_I: {
                 // A = cos(_inputs[P % inputLength]);
-                _code.movsd(A, ptr[inputs + PI * 8]); // assign from pointer to A
+                code_.movsd(A, ptr[inputs + PI * 8]); // assign from pointer to A
                 // WARNING!!! ONLY ODD NUMBER OF VARIABLES CAN BE ON THE STACK
-                _code.push(P);           // save the P register, we'll use it
+                code_.push(P);           // save the P register, we'll use it
                 if (stackSize % 2 == 0) {
 #ifdef _WIN64
-                    _code.sub(rsp, 32);  // windows shadow space
+                    code_.sub(rsp, 32);  // windows shadow space
 #endif
-                    _code.mov(rax, cos_asm);
-                    _code.call(rax);     // call cos(xmm0), cos(A)
+                    code_.mov(rax, cos_asm);
+                    code_.call(rax);     // call cos(xmm0), cos(A)
 #ifdef _WIN64
-                    _code.add(rsp, 32);
+                    code_.add(rsp, 32);
 #endif
                 } else {
 #ifdef _WIN64
-                    _code.sub(rsp, 40);  // windows shadow space and stack alignment
+                    code_.sub(rsp, 40);  // windows shadow space and stack alignment
 #else
-                    _code.sub(rsp, 8);   // stack alignment
+                    code_.sub(rsp, 8);   // stack alignment
 #endif
-                    _code.mov(rax, cos_asm);
-                    _code.call(rax);     // call cos(xmm0), cos(A)
+                    code_.mov(rax, cos_asm);
+                    code_.call(rax);     // call cos(xmm0), cos(A)
 #ifdef _WIN64
-                    _code.add(rsp, 40);
+                    code_.add(rsp, 40);
 #else
-                    _code.sub(rsp, 8);
+                    code_.add(rsp, 8);
 #endif
                 }
 
-                _code.pop(P); // restore the P register
+                code_.pop(P); // restore the P register
                 break;
             }
             case EXP_I: {
                 // A = exp(_inputs[P % inputLength]);
-                _code.movsd(A, ptr[inputs + PI * 8]); // assign from pointer to A
+                code_.movsd(A, ptr[inputs + PI * 8]); // assign from pointer to A
                 // WARNING!!! ONLY ODD NUMBER OF VARIABLES CAN BE ON THE STACK
-                _code.push(P);           // save the P register, we'll use it
+                code_.push(P);           // save the P register, we'll use it
                 if (stackSize % 2 == 0) {
 #ifdef _WIN64
-                    _code.sub(rsp, 32);  // windows shadow space
+                    code_.sub(rsp, 32);  // windows shadow space
 #endif
-                    _code.mov(rax, exp_asm);
-                    _code.call(rax);     // call exp(xmm0), exp(A)
+                    code_.mov(rax, exp_asm);
+                    code_.call(rax);     // call exp(xmm0), exp(A)
 #ifdef _WIN64
-                    _code.add(rsp, 32);
+                    code_.add(rsp, 32);
 #endif
                 } else {
 #ifdef _WIN64
-                    _code.sub(rsp, 40);  // windows shadow space and stack alignment
+                    code_.sub(rsp, 40);  // windows shadow space and stack alignment
 #else
-                    _code.sub(rsp, 8);   // stack alignment
+                    code_.sub(rsp, 8);   // stack alignment
 #endif
-                    _code.mov(rax, exp_asm);
-                    _code.call(rax);     // call exp(xmm0), exp(A)
+                    code_.mov(rax, exp_asm);
+                    code_.call(rax);     // call exp(xmm0), exp(A)
 #ifdef _WIN64
-                    _code.add(rsp, 40);
+                    code_.add(rsp, 40);
 #else
-                    _code.sub(rsp, 8);
+                    code_.add(rsp, 8);
 #endif
                 }
 
-                _code.pop(P); // restore the P register
+                code_.pop(P); // restore the P register
                 break;
             }
             case INC: {
                 // P++;
-                _code.add(P, 1); // add 1
+                code_.add(P, 1); // add 1
                 // prepare rax, because cmove does not support immediate addressing
-                _code.xor_(rax, rax); // rax = 0
+                code_.xor_(rax, rax); // rax = 0
                 // update PI
-                _code.add(PI, 1); // add 1
-                _code.cmp(PI, inputLength); // compare to length
-                _code.cmove(PI, rax); // set to 0 if equal length
+                code_.add(PI, 1); // add 1
+                code_.cmp(PI, inputLength); // compare to length
+                code_.cmove(PI, rax); // set to 0 if equal length
                 // update PR
-                _code.add(PR, 1); // add 1
-                _code.cmp(PR, registerLength); // compare to length
-                _code.cmove(PR, rax); // set to 0 if equal length
+                code_.add(PR, 1); // add 1
+                code_.cmp(PR, registerLength); // compare to length
+                code_.cmove(PR, rax); // set to 0 if equal length
                 break;
             }
             case DEC: {
                 // P--;
-                _code.sub(P, 1); // sub 1
+                code_.sub(P, 1); // sub 1
                 // update PI
-                _code.cmp(PI, 0); // compare to 0
-                _code.cmove(PI, inputLength); // set to length if equal 0
-                _code.sub(PI, 1); // sub 1
+                code_.cmp(PI, 0); // compare to 0
+                code_.cmove(PI, inputLength); // set to length if equal 0
+                code_.sub(PI, 1); // sub 1
                 // update PR
-                _code.cmp(PR, 0); // compare to 0
-                _code.cmove(PR, registerLength); // set to length if equal 0
-                _code.sub(PR, 1); // sub 1
+                code_.cmp(PR, 0); // compare to 0
+                code_.cmove(PR, registerLength); // set to length if equal 0
+                code_.sub(PR, 1); // sub 1
 
                 break;
             }
             case RES: {
                 // P = 0;
-                _code.xor_(P, P); // set to 0
-                _code.xor_(PI, PI); // set to 0
-                _code.xor_(PR, PR); // set to 0
+                code_.xor_(P, P); // set to 0
+                code_.xor_(PI, PI); // set to 0
+                code_.xor_(PR, PR); // set to 0
                 break;
             }
             case SET: {
                 // A = _constants[_counter++ % _constantsLength];
                 // WARNING!!! ONLY ODD NUMBER OF VARIABLES CAN BE ON THE STACK
-                _code.push(P);           // save the P register, we'll use it
+                code_.push(P);           // save the P register, we'll use it
                 if (stackSize % 2 == 0) {
 #ifdef _WIN64
-                    _code.sub(rsp, 32);  // windows shadow space
+                    code_.sub(rsp, 32);  // windows shadow space
 #endif
-                    _code.mov(rax, constants);
-                    _code.call(rax);     // call constants
+                    code_.mov(rax, constants);
+                    code_.call(rax);     // call constants
 #ifdef _WIN64
-                    _code.add(rsp, 32);
+                    code_.add(rsp, 32);
 #endif
                 } else {
 #ifdef _WIN64
-                    _code.sub(rsp, 40);  // windows shadow space and stack alignment
+                    code_.sub(rsp, 40);  // windows shadow space and stack alignment
 #else
-                    _code.sub(rsp, 8);   // stack alignment
+                    code_.sub(rsp, 8);   // stack alignment
 #endif
-                    _code.mov(rax, constants);
-                    _code.call(rax);     // call constants
+                    code_.mov(rax, constants);
+                    code_.call(rax);     // call constants
 #ifdef _WIN64
-                    _code.add(rsp, 40);
+                    code_.add(rsp, 40);
 #else
-                    _code.sub(rsp, 8);
+                    code_.add(rsp, 8);
 #endif
                 }
 
-                _code.pop(P); // restore the P register
+                code_.pop(P); // restore the P register
                 break;
             }
             case FOR: {
@@ -531,21 +531,21 @@ run_fn_t GAsmInterpreter::compile() {
                 Xbyak::Label start;
                 startLabelStack.push_back(start); // create start label
                 // prepare the for loop
-                _code.push(P);           // save P to stack
+                code_.push(P);           // save P to stack
                 stackSize++;             // increment stack size
-                _code.add(dynamicStackSize, 1);
-                _code.xor_(P, P);        // P = 0
+                code_.add(dynamicStackSize, 1);
+                code_.xor_(P, P);        // P = 0
                 // we assume the inputLength is >= 1
                 // that means the for loop will execute al least once
                 // we don't have to check the condition the first time
                 // loop start
-                _code.L(startLabelStack.back());
+                code_.L(startLabelStack.back());
                 // move process time forward
-//                _code.mov(rax, processTime);        // make a copy in rax
-//                _code.add(rax, processTimeCounter); // add the amount of instructions
-//                _code.mov(processTime, rax);        // save to process time
-//                _code.cmp(rax, maxProcessTime);
-//                _code.ja(endProgram, Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to end
+//                code_.mov(rax, processTime);        // make a copy in rax
+//                code_.add(rax, processTimeCounter); // add the amount of instructions
+//                code_.mov(processTime, rax);        // save to process time
+//                code_.cmp(rax, maxProcessTime);
+//                code_.ja(endProgram, Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to end
 //                processTimeCounter = 0;
                 break;
             }
@@ -556,15 +556,15 @@ run_fn_t GAsmInterpreter::compile() {
                 Xbyak::Label start;
                 startLabelStack.push_back(start);  // create start label
                 // condition is at the end
-                _code.jmp(endLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to the end
+                code_.jmp(endLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to the end
                 // loop start
-                _code.L(startLabelStack.back());
+                code_.L(startLabelStack.back());
                 // move process time forward
-//                _code.mov(rax, processTime);        // make a copy in rax
-//                _code.add(rax, processTimeCounter); // add the amount of instructions
-//                _code.mov(processTime, rax);        // save to process time
-//                _code.cmp(rax, maxProcessTime);
-//                _code.ja(endProgram, Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to end
+//                code_.mov(rax, processTime);        // make a copy in rax
+//                code_.add(rax, processTimeCounter); // add the amount of instructions
+//                code_.mov(processTime, rax);        // save to process time
+//                code_.cmp(rax, maxProcessTime);
+//                code_.ja(endProgram, Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to end
 //                processTimeCounter = 0;
                 break;
             }
@@ -575,15 +575,15 @@ run_fn_t GAsmInterpreter::compile() {
                 Xbyak::Label start;
                 startLabelStack.push_back(start);  // create start label
                 // condition is at the end
-                _code.jmp(endLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to the end
+                code_.jmp(endLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to the end
                 // loop start
-                _code.L(startLabelStack.back());
+                code_.L(startLabelStack.back());
                 // move process time forward
-//                _code.mov(rax, processTime);        // make a copy in rax
-//                _code.add(rax, processTimeCounter); // add the amount of instructions
-//                _code.mov(processTime, rax);        // save to process time
-//                _code.cmp(rax, maxProcessTime);
-//                _code.ja(endProgram, Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to end
+//                code_.mov(rax, processTime);        // make a copy in rax
+//                code_.add(rax, processTimeCounter); // add the amount of instructions
+//                code_.mov(processTime, rax);        // save to process time
+//                code_.cmp(rax, maxProcessTime);
+//                code_.ja(endProgram, Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to end
 //                processTimeCounter = 0;
                 break;
             }
@@ -591,27 +591,27 @@ run_fn_t GAsmInterpreter::compile() {
                 instructionStack.push_back(JMP_I);  // notify END about the instruction
                 Xbyak::Label end;
                 endLabelStack.push_back(end);    // create end label
-                _code.movsd(xmm1, ptr[inputs + PI*8]); // xmm1 = I[P % length]
-                _code.comisd(A, xmm1);           // compare A and xmm1
-                _code.jnb(endLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if A >= xmm1
+                code_.movsd(xmm1, ptr[inputs + PI * 8]); // xmm1 = I[P % length]
+                code_.comisd(A, xmm1);           // compare A and xmm1
+                code_.jnb(endLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if A >= xmm1
                 break;
             }
             case JMP_R: {
                 instructionStack.push_back(JMP_R);  // notify END about the instruction
                 Xbyak::Label end;
                 endLabelStack.push_back(end);    // create end label
-                _code.movsd(xmm1, ptr[registers + PR*8]); // xmm1 = R[P % length]
-                _code.comisd(A, xmm1);           // compare A and xmm1
-                _code.jnb(endLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if A >= xmm1
+                code_.movsd(xmm1, ptr[registers + PR * 8]); // xmm1 = R[P % length]
+                code_.comisd(A, xmm1);           // compare A and xmm1
+                code_.jnb(endLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if A >= xmm1
                 break;
             }
             case JMP_P: {
                 instructionStack.push_back(JMP_P);  // notify END about the instruction
                 Xbyak::Label end;
                 endLabelStack.push_back(end);    // create end label
-                _code.cvtsi2sd(xmm1, P);         // xmm1 = (double) P
-                _code.comisd(xmm1, A);           // compare xmm1 and A
-                _code.jnb(endLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if xmm1 >= A
+                code_.cvtsi2sd(xmm1, P);         // xmm1 = (double) P
+                code_.comisd(xmm1, A);           // compare xmm1 and A
+                code_.jnb(endLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if xmm1 >= A
                 break;
             }
             case END: {
@@ -619,14 +619,14 @@ run_fn_t GAsmInterpreter::compile() {
                 if (!endLabelStack.empty()) {
                     switch (instructionStack.back()) {
                         case FOR: {
-                            _code.L(endLabelStack.back()); // bind the end label
-                            _code.add(P, 1);               // increment P
-                            _code.cmp(P, inputLength);     // compare with length
-                            _code.jnge(startLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if P < length
+                            code_.L(endLabelStack.back()); // bind the end label
+                            code_.add(P, 1);               // increment P
+                            code_.cmp(P, inputLength);     // compare with length
+                            code_.jnge(startLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if P < length
                             // end loop
-                            _code.pop(P);            // restore P
+                            code_.pop(P);            // restore P
                             stackSize--;             // decrement stack size
-                            _code.sub(dynamicStackSize, 1);
+                            code_.sub(dynamicStackSize, 1);
                             // pop all the stacks
                             instructionStack.pop_back();
                             endLabelStack.pop_back();
@@ -634,10 +634,10 @@ run_fn_t GAsmInterpreter::compile() {
                             break;
                         }
                         case LOP_A: {
-                            _code.L(endLabelStack.back());     // bind the end label
-                            _code.movsd(xmm1, ptr[inputs + PI*8]); // xmm1 = I[P % length]
-                            _code.comisd(A, xmm1);             // compare A and xmm1
-                            _code.jg(startLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if A < xmm1
+                            code_.L(endLabelStack.back());     // bind the end label
+                            code_.movsd(xmm1, ptr[inputs + PI * 8]); // xmm1 = I[P % length]
+                            code_.comisd(A, xmm1);             // compare A and xmm1
+                            code_.jg(startLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if A < xmm1
                             // end loop, pop all the stacks
                             instructionStack.pop_back();
                             endLabelStack.pop_back();
@@ -645,10 +645,10 @@ run_fn_t GAsmInterpreter::compile() {
                             break;
                         }
                         case LOP_P: {
-                            _code.L(endLabelStack.back());     // bind the end label
-                            _code.mov(rax, P);                 // save P to rax
-                            _code.cmp(rax, inputLength);       // compare P and input length
-                            _code.jg(startLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if P < inputLength
+                            code_.L(endLabelStack.back());     // bind the end label
+                            code_.mov(rax, P);                 // save P to rax
+                            code_.cmp(rax, inputLength);       // compare P and input length
+                            code_.jg(startLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if P < inputLength
                             // end loop, pop all the stacks
                             instructionStack.pop_back();
                             endLabelStack.pop_back();
@@ -657,7 +657,7 @@ run_fn_t GAsmInterpreter::compile() {
                         }
                         default: {
                             // this case is for JMP_I, JMP_R, JMP_P
-                            _code.L(endLabelStack.back()); // bind the end label
+                            code_.L(endLabelStack.back()); // bind the end label
                             // pop end and instruction stacks
                             instructionStack.pop_back();
                             endLabelStack.pop_back();
@@ -669,51 +669,51 @@ run_fn_t GAsmInterpreter::compile() {
             case RNG: {
                 // A = rng();
                 // WARNING!!! ONLY ODD NUMBER OF VARIABLES CAN BE ON THE STACK
-                _code.push(P);           // save the P register, we'll use it
+                code_.push(P);           // save the P register, we'll use it
                 if (stackSize % 2 == 0) {
 #ifdef _WIN64
-                    _code.sub(rsp, 32);  // windows shadow space
+                    code_.sub(rsp, 32);  // windows shadow space
 #endif
-                    _code.mov(rax, rng);
-                    _code.call(rax);     // call rng
+                    code_.mov(rax, rng);
+                    code_.call(rax);     // call rng
 #ifdef _WIN64
-                    _code.add(rsp, 32);
+                    code_.add(rsp, 32);
 #endif
                 } else {
 #ifdef _WIN64
-                    _code.sub(rsp, 40);  // windows shadow space and stack alignment
+                    code_.sub(rsp, 40);  // windows shadow space and stack alignment
 #else
-                    _code.sub(rsp, 8);   // stack alignment
+                    code_.sub(rsp, 8);   // stack alignment
 #endif
-                    _code.mov(rax, rng);
-                    _code.call(rax);     // call rng
+                    code_.mov(rax, rng);
+                    code_.call(rax);     // call rng
 #ifdef _WIN64
-                    _code.add(rsp, 40);
+                    code_.add(rsp, 40);
 #else
-                    _code.sub(rsp, 8);
+                    code_.add(rsp, 8);
 #endif
                 }
 
-                _code.pop(P); // restore the P register
+                code_.pop(P); // restore the P register
             }
             default: {
                 break;
             }
         }
         // increase process time and check if it's the end
-        _code.mov(rax, processTime); // make a copy in rax
-        _code.add(rax, 1);           // add 1
-        _code.mov(processTime, rax); // save to process time
-        _code.cmp(rax, maxProcessTime);
-        _code.ja(endProgram, Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to end
+        code_.mov(rax, processTime); // make a copy in rax
+        code_.add(rax, 1);           // add 1
+        code_.mov(processTime, rax); // save to process time
+        code_.cmp(rax, maxProcessTime);
+        code_.ja(endProgram, Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to end
         // TODO make it faster, do it every 10 times and on loop entry TESTING
 //        processTimeCounter++;
 //        if (processTimeCounter == spaceBetweenProcessTime) {
-//            _code.mov(rax, processTime);             // make a copy in rax
-//            _code.add(rax, spaceBetweenProcessTime); // add step amount
-//            _code.mov(processTime, rax);             // save to process time
-//            _code.cmp(rax, maxProcessTime);
-//            _code.ja(endProgram, Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to end
+//            code_.mov(rax, processTime);             // make a copy in rax
+//            code_.add(rax, spaceBetweenProcessTime); // add step amount
+//            code_.mov(processTime, rax);             // save to process time
+//            code_.cmp(rax, maxProcessTime);
+//            code_.ja(endProgram, Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump to end
 //            processTimeCounter = 0;
 //        }
     }
@@ -721,14 +721,14 @@ run_fn_t GAsmInterpreter::compile() {
     while (!endLabelStack.empty()) {
         switch (instructionStack.back()) {
             case FOR: {
-                _code.L(endLabelStack.back()); // bind the end label
-                _code.add(P, 1);               // increment P
-                _code.cmp(P, inputLength);     // compare with length
-                _code.jnge(startLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if P < length
+                code_.L(endLabelStack.back()); // bind the end label
+                code_.add(P, 1);               // increment P
+                code_.cmp(P, inputLength);     // compare with length
+                code_.jnge(startLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if P < length
                 // end loop
-                _code.pop(P);            // restore P
+                code_.pop(P);            // restore P
                 stackSize--;             // decrement stack size
-                _code.sub(dynamicStackSize, 1);
+                code_.sub(dynamicStackSize, 1);
                 // pop all the stacks
                 instructionStack.pop_back();
                 endLabelStack.pop_back();
@@ -736,10 +736,10 @@ run_fn_t GAsmInterpreter::compile() {
                 break;
             }
             case LOP_A: {
-                _code.L(endLabelStack.back());     // bind the end label
-                _code.movsd(xmm1, ptr[inputs + PI*8]); // xmm1 = I[P % length]
-                _code.comisd(A, xmm1);             // compare A and xmm1
-                _code.jnle(startLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if A <= xmm1
+                code_.L(endLabelStack.back());     // bind the end label
+                code_.movsd(xmm1, ptr[inputs + PI * 8]); // xmm1 = I[P % length]
+                code_.comisd(A, xmm1);             // compare A and xmm1
+                code_.jnle(startLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if A <= xmm1
                 // end loop, pop all the stacks
                 instructionStack.pop_back();
                 endLabelStack.pop_back();
@@ -747,10 +747,10 @@ run_fn_t GAsmInterpreter::compile() {
                 break;
             }
             case LOP_P: {
-                _code.L(endLabelStack.back());     // bind the end label
-                _code.mov(rax, P);                 // save P to rax
-                _code.cmp(rax, inputLength);       // compare P and input length
-                _code.jng(startLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if P <= inputLength
+                code_.L(endLabelStack.back());     // bind the end label
+                code_.mov(rax, P);                 // save P to rax
+                code_.cmp(rax, inputLength);       // compare P and input length
+                code_.jng(startLabelStack.back(), Xbyak::CodeGenerator::LabelType::T_NEAR); // long jump if P <= inputLength
                 // end loop, pop all the stacks
                 instructionStack.pop_back();
                 endLabelStack.pop_back();
@@ -759,7 +759,7 @@ run_fn_t GAsmInterpreter::compile() {
             }
             default: {
                 // this case is for JMP_I, JMP_R, JMP_P
-                _code.L(endLabelStack.back()); // bind the end label
+                code_.L(endLabelStack.back()); // bind the end label
                 // pop end and instruction stacks
                 instructionStack.pop_back();
                 endLabelStack.pop_back();
@@ -767,23 +767,23 @@ run_fn_t GAsmInterpreter::compile() {
         }
     }
     // end of the program
-    _code.L(endProgram);
-    _code.mov(rax, dynamicStackSize); // prepare for stack restoration
-    _code.shl(rax, 3);                // * 8, move stack by 8 for every push
-    _code.add(rsp, rax);              // pop from stack
-    _code.mov(rax, processTime); // return process time
-//    _code.add(rax, spaceBetweenProcessTime - processTimeCounter - 1); // add remaining process time
-    _code.add(rsp, LOCALS); // restore stack of locals
+    code_.L(endProgram);
+    code_.mov(rax, dynamicStackSize); // prepare for stack restoration
+    code_.shl(rax, 3);                // * 8, move stack by 8 for every push
+    code_.add(rsp, rax);              // pop from stack
+    code_.mov(rax, processTime); // return process time
+//    code_.add(rax, spaceBetweenProcessTime - processTimeCounter - 1); // add remaining process time
+    code_.add(rsp, LOCALS); // restore stack of locals
     // restore the caller's stack
-    _code.pop(r15);
-    _code.pop(r14);
-    _code.pop(r13);
-    _code.pop(r12);
-    _code.pop(rbx);
-    _code.pop(rbp);
-    _code.ret();    // return from function
+    code_.pop(r15);
+    code_.pop(r14);
+    code_.pop(r13);
+    code_.pop(r12);
+    code_.pop(rbx);
+    code_.pop(rbp);
+    code_.ret();    // return from function
 
     // finalize and get function pointer
-    _code.ready();
-    return _code.getCode<run_fn_t>();
+    code_.ready();
+    return code_.getCode<run_fn_t>();
 }

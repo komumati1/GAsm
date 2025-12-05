@@ -23,34 +23,38 @@ unsigned int operator ""_max_gen(unsigned long long int);
 #include "functions.h"
 #include "GAsmInterpreter.h"
 
-using gen_fun_t = double(*)();
-
 class GAsm {
 private:
-    std::vector<std::vector<uint8_t>> _population;
-    std::vector<double> _fitness;
-    std::vector<double> _rank;  // other parameter determining the quality of individual
+    std::vector<std::vector<uint8_t>> population_;
+    std::vector<double> fitness_;
+    std::vector<double> rank_;  // other parameter determining the quality of individual
 
-    GAsmInterpreter _runner;
-    size_t _registerLength = 10;
-    gen_fun_t cng = nullptr;
-    gen_fun_t rng = nullptr;
-    bool _useCompile = true;
+    GAsmInterpreter runner_;
+
+    std::unique_ptr<FitnessFunction> fitnessFunction_ = std::make_unique<Fitness>();
+    std::unique_ptr<SelectionFunction> selectionFunction_ = std::make_unique<TournamentSelection>(2);
+    std::unique_ptr<CrossoverFunction> crossoverFunction_ = std::make_unique<OnePointCrossover>();
+    std::unique_ptr<MutationFunction> mutationFunction_ = std::make_unique<HardMutation>();
+    std::unique_ptr<GrowFunction> growFunction_ = std::make_unique<FullGrow>();
 
     double printGenerationStats(int gen);
 public:
     // getters and setters
-    [[nodiscard]] const std::vector<std::vector<uint8_t>>& getPopulation() const;
-    [[nodiscard]] const std::vector<double>& getFitness() const;
-    [[nodiscard]] const std::vector<double>& getRank() const;
-    [[nodiscard]] const double& getFitness(size_t i) const;
-    [[nodiscard]] const double& getRank(size_t i) const;
-    [[nodiscard]] const gen_fun_t& getCNG() const;
-    void setCNG(const gen_fun_t& cng_);
-    [[nodiscard]] const gen_fun_t& getRNG() const;
-    void setRNG(const gen_fun_t& rng_);
-    [[nodiscard]] const bool& getCompile() const;
-    void setCompile(const bool& useCompile);
+    [[nodiscard]] const std::vector<std::vector<uint8_t>>& getPopulation() const { return population_; }
+    [[nodiscard]] const std::vector<double>& getFitness() const { return fitness_; }
+    [[nodiscard]] const std::vector<double>& getRank() const { return rank_; }
+    [[nodiscard]] const double& getFitness(size_t i) const { return fitness_[i]; }
+    [[nodiscard]] const double& getRank(size_t i) const { return rank_[i]; }
+    [[nodiscard]] const FitnessFunction& fitness() const { return *fitnessFunction_; }
+    void setFitnessFunction(std::unique_ptr<FitnessFunction> f) { fitnessFunction_ = std::move(f); }
+    [[nodiscard]] const SelectionFunction& selection() const { return *selectionFunction_; }
+    void setSelectionFunction(std::unique_ptr<SelectionFunction> s) { selectionFunction_ = std::move(s); }
+    [[nodiscard]] const CrossoverFunction& crossover() const { return *crossoverFunction_; }
+    void setCrossoverFunction(std::unique_ptr<CrossoverFunction> c) { crossoverFunction_ = std::move(c); }
+    [[nodiscard]] const MutationFunction& mutation() const { return *mutationFunction_; }
+    void setMutationFunction(std::unique_ptr<MutationFunction> m) { mutationFunction_ = std::move(m); }
+    [[nodiscard]] const GrowFunction& grow() const { return *growFunction_; }
+    void setGrowFunction(std::unique_ptr<GrowFunction> g) { growFunction_ = std::move(g); }
 
     // public attributes
     unsigned int populationSize = 1000;
@@ -59,16 +63,25 @@ public:
     double crossoverProbability = 0.9;
     unsigned int maxGenerations = 5;
     double goalFitness = 1000.0;
+    double nanPenalty = 1e1;
     bool minimize = false;
     Hist hist = Hist();
     std::vector<std::vector<double>> inputs;
     std::vector<std::vector<double>> targets;
     std::vector<uint8_t> bestIndividual;
 
+    // runner setters and getters
+    [[nodiscard]] size_t getRegisterLength() const { return runner_.getRegisterLength(); }
+    void setRegisterLength(const size_t& length) { runner_.setRegisterLength(length); }
+    [[nodiscard]] const gen_fn_t& getCNG() const { return runner_.getCng(); }
+    void setCNG(std::unique_ptr<gen_fn_t> cng) { runner_.setCng(std::move(cng)); }
+    [[nodiscard]] const gen_fn_t& getRNG() const { return runner_.getRng(); }
+    void setRNG(std::unique_ptr<gen_fn_t> rng) { runner_.setRng(std::move(rng)); }
+    [[nodiscard]] const bool& getCompile() const { return runner_.useCompile; }
+    void setCompile(const bool& useCompile) { runner_.useCompile = useCompile; }
+
     // public runner attributes
-    [[nodiscard]] size_t getRegisterLength() const {return _registerLength;}
-    void setRegisterLength(const size_t& length) {_registerLength = length; _runner.setRegisterLength(length);}
-    size_t maxProcessTime = 1000;
+    size_t maxProcessTime = 10000;
 
     // constructors
     GAsm();
@@ -90,44 +103,6 @@ public:
     size_t run(std::vector<double>& inputs);
     double runAll(const std::vector<uint8_t> &program, std::vector<std::vector<double>> &outputs);
     void evolve(const std::vector<std::vector<double>>& inputs, const std::vector<std::vector<double>>& targets);
-    // TODO free these pointers (setters and getters)
-    FitnessFunction* fitnessFunction = new Fitness();
-    SelectionFunction* selectionFunction = new TournamentSelection(2);
-    CrossoverFunction* crossoverFunction = new OnePointCrossover();
-    MutationFunction* mutationFunction = new HardMutation();
-    GrowFunction* growFunction = new FullGrow();
-
-//    std::unique_ptr<FitnessFunction> fitnessFunction = std::make_unique<Fitness>();
-//    std::unique_ptr<SelectionFunction> selectionFunction = std::make_unique<TournamentSelection>(2);
-//    std::unique_ptr<CrossoverFunction> crossoverFunction = std::make_unique<OnePointCrossover>();
-//    std::unique_ptr<MutationFunction> mutationFunction = std::make_unique<HardMutation>();
-//    std::unique_ptr<GrowFunction> growFunction = std::make_unique<FullGrow>();
-
-//    void setFitnessFunction(std::unique_ptr<FitnessFunction> f) {
-//        fitnessFunction_ = std::move(f);
-//    }
-//
-//    void setSelectionFunction(std::unique_ptr<SelectionFunction> s) {
-//        selectionFunction_ = std::move(s);
-//    }
-//
-//    void setCrossoverFunction(std::unique_ptr<CrossoverFunction> c) {
-//        crossoverFunction_ = std::move(c);
-//    }
-//
-//    void setMutationFunction(std::unique_ptr<MutationFunction> m) {
-//        mutationFunction_ = std::move(m);
-//    }
-//
-//    void setGrowFunction(std::unique_ptr<GrowFunction> g) {
-//        growFunction_ = std::move(g);
-//    }
-//
-//    FitnessFunction& fitness() { return *fitnessFunction_; }
-//    SelectionFunction& selection() { return *selectionFunction_; }
-//    CrossoverFunction& crossover() { return *crossoverFunction_; }
-//    MutationFunction& mutation() { return *mutationFunction_; }
-//    GrowFunction& grow() { return *growFunction_; }
 };
 
 

@@ -15,13 +15,13 @@ std::pair<double, double> Fitness::operator()(GAsm *self, const std::vector<uint
     self->setProgram(individual);
     double score = 0.0;
     double avgTime = 0.0;
-    for (int i = 0; i < self->inputs.size(); i++) {
+    for (int i = 0; i < self->inputs.size(); i += 1) {
         std::vector<double> input = self->inputs[i];
         const std::vector<double>& target = self->targets[i];
         avgTime += (double)self->run(input);
 
         double diff = input[0] - target[0];
-        score += std::isfinite(diff) ? std::fabs(diff) : 1e1; // TODO define a penalty
+        score += std::isfinite(diff) ? std::fabs(diff) : self->nanPenalty;
     }
     avgTime /= (double)self->inputs.size();
     return {score, avgTime};

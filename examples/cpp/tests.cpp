@@ -127,8 +127,8 @@ void InterpreterVsCompiler() {
 
     // setup
     runner.setRegisterLength(registerLength);
-    runner.cng = cng;
-    runner.rng = rng;
+    runner.setCng(std::make_unique<gen_fn_t >(cng));
+    runner.setRng(std::make_unique<gen_fn_t>(rng));
 
     // variables
     LARGE_INTEGER start, finish, freq;

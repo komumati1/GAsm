@@ -86,26 +86,6 @@ static PyObject* PyGAsm_runAll(PyGAsm* self, PyObject* args) {
     return PyFloat_FromDouble(result);
 }
 
-// GAsm.setCNG(ptr)
-static PyObject* PyGAsm_setCNG(PyGAsm* self, PyObject* args) {
-    unsigned long long addr;
-    if (!PyArg_ParseTuple(args, "K", &addr))
-        return nullptr;
-
-    self->cpp->setCNG((gen_fun_t)addr);
-    Py_RETURN_NONE;
-}
-
-// GAsm.setRNG(ptr)
-static PyObject* PyGAsm_setRNG(PyGAsm* self, PyObject* args) {
-    unsigned long long addr;
-    if (!PyArg_ParseTuple(args, "K", &addr))
-        return nullptr;
-
-    self->cpp->setRNG((gen_fun_t)addr);
-    Py_RETURN_NONE;
-}
-
 // GAsm.evolve(inputs, targets)
 static PyObject* PyGAsm_evolve(PyGAsm* self, PyObject* args) {
     PyObject* inList;
@@ -127,22 +107,6 @@ static PyObject* PyGAsm_evolve(PyGAsm* self, PyObject* args) {
     targets.reserve(nTar);
     for (Py_ssize_t i = 0; i < nTar; i++)
         targets.push_back(toDoubleVector(PyList_GetItem(tarList, i)));
-
-//    for (int i = 0; i < inputs.size(); i++)
-//    {
-//        for (int j = 0; j < inputs[i].size(); j++)
-//        {
-//            std::cout << inputs[i][j] << std::endl;
-//        }
-//    }
-//
-//    for (int i = 0; i < targets.size(); i++)
-//    {
-//        for (int j = 0; j < targets[i].size(); j++)
-//        {
-//            std::cout << targets[i][j] << std::endl;
-//        }
-//    }
 
     self->cpp->evolve(inputs, targets);
     Py_RETURN_NONE;
@@ -182,8 +146,6 @@ static PyMethodDef PyGAsm_methods[] = {
         {"setProgram", (PyCFunction)PyGAsm_setProgram, METH_VARARGS, "Set program"},
         {"run",        (PyCFunction)PyGAsm_run,        METH_VARARGS, "Run once"},
         {"runAll",     (PyCFunction)PyGAsm_runAll,     METH_VARARGS, "Run all"},
-        {"setCNG",     (PyCFunction)PyGAsm_setCNG,     METH_VARARGS, "Set constant generator"},
-        {"setRNG",     (PyCFunction)PyGAsm_setRNG,     METH_VARARGS, "Set RNG"},
         {"evolve",     (PyCFunction)PyGAsm_evolve,     METH_VARARGS, "Run evolution"},
         {"save2File", (PyCFunction)PyGAsm_save2File, METH_VARARGS, "Save engine state to JSON file"},
         {"fromJson",  (PyCFunction)PyGAsm_fromJson,  METH_VARARGS | METH_STATIC, "Load engine state from JSON file"},
