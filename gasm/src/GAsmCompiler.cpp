@@ -29,14 +29,6 @@ run_fn_t GAsmInterpreter::compile() {
     // rax - used in division and general operations
     // rdx - used in division
 
-    // Register entry mapping (Intel 64, x86-64, AMD64)
-    // 1: rdi -> inputs (double*)
-    // 2: rsi -> inputLength (size_t)
-    // 3: rdx -> registers (double*)
-    // 4: rcx -> registerLength (size_t)
-    // 5: r8  -> constants function<double()>
-    // 6: r9  -> rng function<double()>
-    //
     // Register mapping used in by the program:
     // r12 -> saved P % inputLength (size_t)
     #define PI r12
@@ -95,15 +87,32 @@ run_fn_t GAsmInterpreter::compile() {
 
     // move function arguments to appropriate registers
 #if defined(__unix__)
+// System V AMD64 ABI:
+// 1: inputs          -> rdi
+// 2: inputLength     -> rsi
+// 3: registers       -> rdx
+// 4: registerLength  -> rcx
+// 5: constants       -> r8
+// 6: rng             -> r9
+// 7: maxProcessTime  -> [rsp+8] at entry -> [rbp+16] after push rbp/mov rbp,rsp
     _code.mov(inputs, rdi);
     _code.mov(inputLength, rsi);
     _code.mov(registers, rdx);
     _code.mov(registerLength, rcx);
     _code.mov(constants, r8);  // constants
     _code.mov(rng, r9);        // rng;
-    _code.mov(rax, qword[rbp + 8]);
+    _code.mov(rax, qword[rbp + 16]);
     _code.mov(maxProcessTime, rax); // max process time;
 #elif defined(_WIN64)
+// Microsoft x64 ABI:
+// 1: inputs          -> rcx
+// 2: inputLength     -> rdx
+// 3: registers       -> r8
+// 4: registerLength  -> r9
+// 5: constants       -> [rsp+40] at entry
+// 6: rng             -> [rsp+48]
+// 7: maxProcessTime  -> [rsp+56]
+// After push rbp/mov rbp,rsp those become +48, +56, +64 respectively.
     _code.mov(inputs, rcx);
     _code.mov(inputLength, rdx);
     _code.mov(registers, r8);

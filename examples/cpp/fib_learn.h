@@ -35,11 +35,11 @@ void fibEvolution() {
     gasm.mutationProbability = 0.2;
     // functions
 //    gasm.fitnessFunction = new FibFitness();
-    gasm.crossoverFunction = new UniformPointCrossover();
-    gasm.selectionFunction = new TournamentSelection(3);
+//    gasm.crossoverFunction = new UniformPointCrossover();
+//    gasm.selectionFunction = new TournamentSelection(3);
 //    gasm.selectionFunction = new BoltzmannSelection(3);
-    gasm.growFunction = new TreeGrow(3);
-    gasm.mutationFunction = new HardMutation();
+//    gasm.growFunction = new TreeGrow(3);
+//    gasm.mutationFunction = new HardMutation();
 
     // input and target vectors
     std::vector<std::vector<double>> inputs = {

@@ -3,7 +3,7 @@ import gasm
 g = gasm.GAsm()
 
 g.registerLength = 10
-g.maxGenerations = 10
+g.maxGenerations = 5
 g.populationSize = 10000
 g.individualMaxSize = 100
 g.minimize = True
