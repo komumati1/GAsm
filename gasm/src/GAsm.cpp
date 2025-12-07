@@ -4,8 +4,8 @@
 
 #include <filesystem>
 #include <fstream>
+#include "utils.h"
 #include "../include/GAsm.h"
-#include "../include/GAsmParser.h"
 #include <nlohmann/json.hpp>
 #include <random>
 #include <iostream>
@@ -13,10 +13,24 @@
 #include <cfloat>
 #include <boost/multiprecision/cpp_bin_float.hpp>
 
-GAsm::GAsm() : runner_(1) {}
+GAsm::GAsm() : runner_(1), population_(0), fitness_(1), rank_(1) {
+    unsigned int numThreads = std::thread::hardware_concurrency();
+    if (numThreads == 0) numThreads = 4; // fallback
+    runners_.reserve(numThreads);
+
+    for (unsigned int i = 0; i < numThreads; i++) {
+        runners_.emplace_back(std::move(Runner()));
+    }
+}
 
 GAsm::GAsm(const std::string &filename) : runner_(1) {
-    // TODO update json schema
+    unsigned int numThreads = std::thread::hardware_concurrency();
+    if (numThreads == 0) numThreads = 4; // fallback
+    runners_.reserve(numThreads);
+
+    for (unsigned int i = 0; i < numThreads; i++) {
+        runners_.emplace_back(std::move(Runner()));
+    }
     using nlohmann::json;
     // Read file
     std::ifstream file(filename, std::ios::binary);
@@ -36,6 +50,11 @@ GAsm::GAsm(const std::string &filename) : runner_(1) {
     maxGenerations      = j["maxGenerations"];
     goalFitness         = j["goalFitness"];
     maxProcessTime      = j["maxProcessTime"];
+    outputFolder        = j["outputFolder"];
+    checkPointInterval  = j["checkPointInterval"];
+
+    // Load register length
+    setRegisterLength(j["registerLength"]);
 
     // Load inputs & targets
     inputs  = j["inputs"].get<std::vector<std::vector<double>>>();
@@ -73,17 +92,13 @@ GAsm::GAsm(const std::string &filename) : runner_(1) {
         hist = Hist(j["history"]);
     else
         hist = Hist();   // empty history
-
-    // Set runner
 }
-
 
 GAsm::~GAsm() = default;
 
-void GAsm::save2File(const std::string& filename) {
+nlohmann::json GAsm::toJson() {
     using nlohmann::json;
     json j;
-
     // Save simple fields
     j["populationSize"]    = populationSize;
     j["individualMaxSize"] = individualMaxSize;
@@ -91,6 +106,8 @@ void GAsm::save2File(const std::string& filename) {
     j["crossoverProbability"] = crossoverProbability;
     j["maxGenerations"] = maxGenerations;
     j["goalFitness"] = goalFitness;
+    j["outputFolder"] = outputFolder;
+    j["checkPointInterval"] = checkPointInterval;
     j["maxProcessTime"] = maxProcessTime;
 
     // Save inputs
@@ -123,6 +140,13 @@ void GAsm::save2File(const std::string& filename) {
     // Save history
     j["history"] = hist.toJson();
 
+    // Save register length
+    j["registerLength"] = runner_.getRegisterLength();
+
+    return j;
+}
+
+void GAsm::save2File(const std::string& filename) {
     // Write to file
     std::ofstream f(filename);
     if (!f.is_open()) {
@@ -130,18 +154,26 @@ void GAsm::save2File(const std::string& filename) {
         return;
     }
     std::cout << "Writing to file: " << std::filesystem::absolute(filename) << std::endl;
-    f << j.dump(4);   // pretty print
+    f << toJson().dump(4);   // pretty print
     f.close();
     std::cout << "File written successfully!" << std::endl;
 }
 
-static void printHeader(const GAsm* const self) {
+void GAsm::printHeader(const GAsm* const self) {
     std::cout << "-- GAsm evolution --" << std::endl;
     std::cout << "Max individual size: " << self->individualMaxSize << std::endl;
     std::cout << "Population size: " << self->populationSize << std::endl;
     std::cout << "Crossover probability: " << self->crossoverProbability << std::endl;
     std::cout << "Mutation probability: " << self->mutationProbability << std::endl;
-    std::cout << "Max generations:" << self->maxGenerations << std::endl;
+    std::cout << "Max generations: " << self->maxGenerations << std::endl;
+    std::cout << "Register length: " << self->runner_.getRegisterLength() << std::endl;
+    std::cout << "Max process time: " << self->maxProcessTime << std::endl;
+    std::cout << "Minimize: " << (self->minimize ? "True" : "False") << std::endl;
+    std::cout << "Output folder: " << self->outputFolder << std::endl;
+    std::cout << "Checkpoint interval: " << self->checkPointInterval << std::endl;
+    std::cout << "Goal fitness: " << self->goalFitness << std::endl;
+    std::cout << "NaN penalty: " << self->nanPenalty << std::endl;
+    std::cout << "Number of cores: " << self->runners_.size() << std::endl;
     std::cout << "----------------------------------" << std::endl;
 }
 
@@ -170,46 +202,95 @@ double GAsm::printGenerationStats(int generation) {
     return bestFitness;
 }
 
-static void printTime(double elapsedSeconds) {
-    int minutes = (int)elapsedSeconds / 60;
-    int hours = minutes / 60;
-    elapsedSeconds -= minutes * 60;
-    minutes -= hours * 60;
-    if (hours != 0) std::cout << hours << "h ";
-    if (minutes != 0) {
-        std::cout << minutes << "m ";
-        std::cout << (int)elapsedSeconds << "s";
-    } else {
-        std::cout << std::fixed
-                  << std::setprecision(2)
-                  << elapsedSeconds << "s";
-    }
-}
-
-static void printProgressBar(int progressPercent, double elapsedSeconds) {
-    const int barWidth = 100;
-    int filled = progressPercent;
-
-    std::cout << "\r[";
-    for (int i = 0; i < filled; ++i) std::cout << "■";
-    for (int i = filled; i < barWidth; ++i) std::cout << " ";
-    std::cout << "] ";
-    printTime(elapsedSeconds);
-    std::cout << std::flush;
-}
-
-void GAsm::evolve(const std::vector<std::vector<double>>& inputs_,
-                  const std::vector<std::vector<double>>& targets_)
+void GAsm::parallelEvolve(const std::vector<std::vector<double>>& inputs_,
+                          const std::vector<std::vector<double>>& targets_)
 {
     using namespace std::chrono;
-
+    // TODO checkpoints
+    // TODO from checkpoint
     this->inputs = inputs_;
     this->targets = targets_;
 
     // Resize population and fitness
     population_.resize(populationSize);
     fitness_.resize(populationSize);
-    rank_.resize(populationSize, 0.0);
+    rank_.resize(populationSize);
+    individualMutexes_.resize(populationSize);
+    for (auto& m : individualMutexes_)
+        m = std::make_unique<std::mutex>();
+    for (auto& ind : population_) {
+        ind.reserve(individualMaxSize);
+    }
+    size_t numThreads = runners_.size();
+    std::vector<std::thread> threads;
+    threads.reserve(numThreads);
+    size_t chunk = (populationSize + numThreads - 1) / numThreads;
+
+    printHeader(this);
+
+    std::cout << "Initializing population" << std::endl;
+    for (size_t t = 0; t < numThreads; ++t) {
+        size_t start = t * chunk;
+        size_t end = std::min<size_t>(start + chunk, populationSize);
+
+        threads.emplace_back([&, t, start, end]() {
+            // each runner gets its chunk and works
+            runners_[t].dispatchGrow(this, start, end, t == 0);  // set first to verbose
+        });
+    }
+
+    for (auto &th : threads) th.join(); // wait for all the threads
+    threads.clear();
+    std::cout << std::endl;
+    printGenerationStats(0);
+
+    auto evolutionStart = high_resolution_clock::now();
+
+    for (int generation = 0; generation < maxGenerations; generation++) {
+        for (size_t t = 0; t < numThreads; ++t) {
+            size_t start = t * chunk;
+            size_t end = std::min<size_t>(start + chunk, populationSize);
+
+            threads.emplace_back([&, t, start, end]() {
+                // each runner gets its chunk and works
+                runners_[t].dispatchEvolve(this, start, end, t == 0);  // set first to verbose
+            });
+        }
+        for (auto &th : threads) th.join(); // wait for all the threads
+        threads.clear();
+        std::cout << std::endl;
+
+        double fitness = printGenerationStats(generation + 1);
+
+        // Early stopping
+        if (minimize) {
+            if (fitness <= goalFitness) break;
+        } else {
+            if (fitness >= goalFitness) break;
+        }
+    }
+    double elapsed = duration<double>(high_resolution_clock::now() - evolutionStart).count();
+    std::cout << "Evolution finished, took: ";
+    printTime(elapsed);
+    std::cout << std::endl;
+}
+
+void GAsm::evolve(const std::vector<std::vector<double>>& inputs_,
+                  const std::vector<std::vector<double>>& targets_)
+{
+    using namespace std::chrono;
+    // TODO checkpoints
+    // TODO from checkpoint
+    this->inputs = inputs_;
+    this->targets = targets_;
+
+    // Resize population and fitness
+    population_.resize(populationSize);
+    fitness_.resize(populationSize);
+    rank_.resize(populationSize);
+    individualMutexes_.resize(populationSize);
+    for (auto& m : individualMutexes_)
+        m = std::make_unique<std::mutex>();
     for (auto& ind : population_) {
         ind.reserve(individualMaxSize);
     }
@@ -224,7 +305,7 @@ void GAsm::evolve(const std::vector<std::vector<double>>& inputs_,
         printProgressBar(progress, elapsed);
         (*growFunction_)(this, population_[i]);
 //        std::cout << std::endl << GAsmParser::bytecode2Text(population_[i].data(), population_[i].size()) << std::endl;
-        std::pair<double, double> fitRank = (*fitnessFunction_)(this, population_[i]);
+        std::pair<double, double> fitRank = (*fitnessFunction_)(this, this->runner_, population_[i]);
 //        std::cout << "Fitness: " << fitRank.first << std::endl;
 //        std::cout << "Rank: " << fitRank.second << std::endl;
 //        std::cout << "Individual: " << GAsmParser::bytecode2Text(population_[i].data(), population_[i].size()) << std::endl;
@@ -255,7 +336,7 @@ void GAsm::evolve(const std::vector<std::vector<double>>& inputs_,
                 (*mutationFunction_)(this, population_[worstIndex], population_[bestIndex]);
             }
 
-            std::pair<double, double> fitRank = (*fitnessFunction_)(this, population_[worstIndex]);
+            std::pair<double, double> fitRank = (*fitnessFunction_)(this, this->runner_, population_[worstIndex]);
             fitness_[worstIndex] = fitRank.first;
             rank_[worstIndex] = fitRank.second;
             int progress = (i + 1) * 100 / (int) populationSize;
@@ -296,4 +377,8 @@ double GAsm::runAll(const std::vector<uint8_t>& program, std::vector<std::vector
         outputs.push_back(std::move(output));
     }
     return sumTime;
+}
+
+void GAsm::makeCheckpoint() {
+    // TODO make a checkpoint
 }

@@ -4,7 +4,7 @@
 
 #include "Hist.h"
 
-Hist::Hist() : _entries() {}
+Hist::Hist() : entries_() {}
 
 Hist::Hist(nlohmann::json json)
 {
@@ -12,7 +12,7 @@ Hist::Hist(nlohmann::json json)
         return;
 
     for (auto& e : json["entries"])
-        _entries.emplace_back(e);
+        entries_.emplace_back(e);
 }
 
 void Hist::add(int generation,
@@ -21,7 +21,7 @@ void Hist::add(int generation,
                double avgSize,
                const std::vector<uint8_t>& bestIndividual)
 {
-    _entries.emplace_back(
+    entries_.emplace_back(
             generation, bestFitness, avgFitness, avgSize, bestIndividual
     );
 }
@@ -31,8 +31,20 @@ nlohmann::json Hist::toJson()
     nlohmann::json j;
     j["entries"] = nlohmann::json::array();
 
-    for (Entry entry : _entries)
+    for (Entry entry : entries_)
         j["entries"].push_back(entry.toJson());
 
     return j;
+}
+
+const std::vector<Entry> &Hist::getEntries() const {
+    return entries_;
+}
+
+const Entry &Hist::getEntry(size_t i) const {
+    return entries_[i];
+}
+
+const Entry &Hist::getLast() const {
+    return entries_.back();
 }

@@ -11,13 +11,20 @@
 
 class Hist {
 private:
-    std::vector<Entry> _entries;
+    std::vector<Entry> entries_;
 public:
+    // constructors
     Hist();
     explicit Hist(nlohmann::json json);
 
+    // methods
     void add(int generation, double bestFitness, double avgFitness, double avgSize, const std::vector<uint8_t>& bestIndividual);
     nlohmann::json toJson();
+
+    // getters and setters
+    [[nodiscard]] const std::vector<Entry>& getEntries() const;
+    [[nodiscard]] const Entry& getEntry(size_t i) const;
+    [[nodiscard]] const Entry& getLast() const;
 };
 
 

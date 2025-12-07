@@ -7,7 +7,11 @@ add_library(gasm STATIC
         src/functions.cpp
         src/GAsmInterpreter.cpp
         src/GAsmCompiler.cpp
-        python/GasmPython.h
+        src/Individual.cpp
+        include/Individual.h
+        src/Runner.cpp
+        include/Runner.h
+        include/utils.h
 )
 
 # Force C++23

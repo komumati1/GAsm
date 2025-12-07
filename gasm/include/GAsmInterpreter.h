@@ -49,6 +49,11 @@ public:
     // constructors
     explicit GAsmInterpreter(const std::vector<uint8_t>& program, size_t registerLength);
     explicit GAsmInterpreter(size_t registerLength);
+    GAsmInterpreter(const GAsmInterpreter& other);
+    GAsmInterpreter& operator=(const GAsmInterpreter& other);
+    GAsmInterpreter(GAsmInterpreter&& other) noexcept;
+    GAsmInterpreter& operator=(GAsmInterpreter&& other) noexcept;
+    ~GAsmInterpreter() = default;
 
     // methods
     size_t run(std::vector<double> &inputs, size_t maxProcessTime);

@@ -59,10 +59,10 @@ int main() {
 //    exampleFib();
 //    exampleJIT();
 //    exampleCompile();
-    CppvsGAsm();
-    std::cout << "==============================================" << std::endl;
-    InterpreterVsCompiler();
-    std::cout << "==============================================" << std::endl;
+//    CppvsGAsm();
+//    std::cout << "==============================================" << std::endl;
+//    InterpreterVsCompiler();
+//    std::cout << "==============================================" << std::endl;
     fibEvolution();
     return 0;
 }

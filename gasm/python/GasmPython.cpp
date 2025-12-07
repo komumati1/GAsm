@@ -3,6 +3,10 @@
 #include <vector>
 #include <iostream>
 
+// TODO update methods
+// TODO add Hist.py
+// TODO add Individual.py
+
 // --------- Helper: convert Python list -> vector<double> ----------
 static std::vector<double> toDoubleVector(PyObject* list) {
     std::vector<double> out;

@@ -29,6 +29,49 @@ GAsmInterpreter::GAsmInterpreter(size_t registerLength)
     }
 }
 
+GAsmInterpreter::GAsmInterpreter(const GAsmInterpreter& other)
+    : program_(other.program_),
+      registers_(other.registers_.size()),
+      compiled_(nullptr),
+      code_(1, Xbyak::AutoGrow) {
+    if (other.compiled_ != nullptr) {
+        compiled_ = compile();
+    }
+}
+
+GAsmInterpreter &GAsmInterpreter::operator=(const GAsmInterpreter &other) {
+    if (this != &other) {
+        program_ = other.program_;
+        registers_ = other.registers_;
+        compiled_ = nullptr;
+        if (other.compiled_ != nullptr) {
+            compiled_ = compile();
+        }
+    }
+    return *this;
+}
+
+GAsmInterpreter::GAsmInterpreter(GAsmInterpreter &&other) noexcept {
+    program_ = other.program_;
+    registers_ = std::move(other.registers_);
+    compiled_ = nullptr;
+    if (other.compiled_ != nullptr) {
+        compiled_ = compile();
+    }
+}
+
+GAsmInterpreter &GAsmInterpreter::operator=(GAsmInterpreter &&other) noexcept {
+    if (this != &other) {
+        program_ = other.program_;
+        registers_ = std::move(other.registers_);
+        compiled_ = nullptr;
+        if (other.compiled_ != nullptr) {
+            compiled_ = compile();
+        }
+    }
+    return *this;
+}
+
 void GAsmInterpreter::setProgram(const std::vector<uint8_t>& program) {
     program_ = &program;
     code_.reset();
@@ -255,4 +298,6 @@ size_t GAsmInterpreter::runCompiled(std::vector<double> &inputs, size_t maxProce
     std::fill(registers_.begin(), registers_.end(), 0);
     return compiled_(inputs.data(), inputs.size(), registers_.data(), registers_.size(), (*cng_), (*rng_), maxProcessTime);
 }
+
+
 

@@ -226,6 +226,11 @@ if (BUILD_PYTHON)
             gasm/src/GAsmInterpreter.cpp
             gasm/include/GAsmInterpreter.h
             gasm/src/GAsmCompiler.cpp
+            gasm/src/Individual.cpp
+            gasm/include/Individual.h
+            gasm/src/Runner.cpp
+            gasm/include/Runner.h
+            gasm/include/utils.h
     )
 
     target_compile_options(GasmPython PRIVATE /std:c++20)

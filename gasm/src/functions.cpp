@@ -11,14 +11,14 @@
 #include "GAsmParser.h"
 #include <iostream>
 
-std::pair<double, double> Fitness::operator()(GAsm *self, const std::vector<uint8_t> &individual) {
-    self->setProgram(individual);
+std::pair<double, double> Fitness::operator()(const GAsm* self, GAsmInterpreter& jit, const std::vector<uint8_t> &individual) {
+    jit.setProgram(individual);
     double score = 0.0;
     double avgTime = 0.0;
     for (int i = 0; i < self->inputs.size(); i += 1) {
         std::vector<double> input = self->inputs[i];
         const std::vector<double>& target = self->targets[i];
-        avgTime += (double)self->run(input);
+        avgTime += (double)jit.run(input, self->maxProcessTime);
 
         double diff = input[0] - target[0];
         score += std::isfinite(diff) ? std::fabs(diff) : self->nanPenalty;
@@ -27,9 +27,13 @@ std::pair<double, double> Fitness::operator()(GAsm *self, const std::vector<uint
     return {score, avgTime};
 }
 
+std::unique_ptr<FitnessFunction> Fitness::clone() const {
+    return std::make_unique<Fitness>(*this);
+}
+
 size_t TournamentSelection::operator()(const GAsm *self) {
     static thread_local std::mt19937 rng(std::random_device{}());
-    std::uniform_int_distribution<size_t> dist(0, self->getPopulation().size() - 1);
+    std::uniform_int_distribution<size_t> dist(0, self->populationSize - 1);
 
     size_t bestIndex = dist(rng);
     for (unsigned int i = 1; i < _tournamentSize; i++) {
@@ -41,21 +45,25 @@ size_t TournamentSelection::operator()(const GAsm *self) {
     return bestIndex;
 }
 
+std::unique_ptr<SelectionFunction> TournamentSelection::clone() const {
+    return std::make_unique<TournamentSelection>(*this);
+}
+
 size_t RouletteSelection::operator()(const GAsm* self) {
     static thread_local std::mt19937 rng(std::random_device{}());
-    const auto& fitness = self->getFitness();
+    size_t size = self->populationSize;
 
-    std::vector<double> weights(fitness.size());
+    std::vector<double> weights(size);
 
     // Convert fitness to weights
     if (selectMinimal) {
         // Lower fitness = better, so invert
-        for (size_t i = 0; i < fitness.size(); i++)
-            weights[i] = 1.0 / (fitness[i] + 1e-12);
+        for (size_t i = 0; i < size; i++)
+            weights[i] = 1.0 / (self->getFitness(i) + 1e-12);
     } else {
         // Higher fitness = better
-        for (size_t i = 0; i < fitness.size(); i++)
-            weights[i] = fitness[i] + 1e-12;
+        for (size_t i = 0; i < size; i++)
+            weights[i] = self->getFitness(i) + 1e-12;
     }
 
     double total = std::accumulate(weights.begin(), weights.end(), 0.0);
@@ -73,9 +81,13 @@ size_t RouletteSelection::operator()(const GAsm* self) {
     return weights.size() - 1; // fallback
 }
 
+std::unique_ptr<SelectionFunction> RouletteSelection::clone() const {
+    return std::make_unique<RouletteSelection>(*this);
+}
+
 size_t RankSelection::operator()(const GAsm* self) {
     static thread_local std::mt19937 rng(std::random_device{}());
-    size_t n = self->getPopulation().size();
+    size_t n = self->populationSize;
 
     // Lower rank = better if minimizing
     std::vector<double> weights(n);
@@ -100,9 +112,13 @@ size_t RankSelection::operator()(const GAsm* self) {
     return n - 1;
 }
 
+std::unique_ptr<SelectionFunction> RankSelection::clone() const {
+    return std::make_unique<RankSelection>(*this);
+}
+
 size_t TruncationSelection::operator()(const GAsm* self) {
     static thread_local std::mt19937 rng(std::random_device{}());
-    size_t n = self->getPopulation().size();
+    size_t n = self->populationSize;
 
     size_t topCount = std::max<size_t>(1, size_t((double)n * _percent));
 
@@ -121,14 +137,18 @@ size_t TruncationSelection::operator()(const GAsm* self) {
     return 0; // fallback (should never happen)
 }
 
+std::unique_ptr<SelectionFunction> TruncationSelection::clone() const {
+    return std::make_unique<TruncationSelection>(*this);
+}
+
 size_t BoltzmannSelection::operator()(const GAsm* self) {
     static thread_local std::mt19937 rng(std::random_device{}());
-    const auto& fitness = self->getFitness();
+    size_t size = self->populationSize;
 
-    std::vector<double> weights(fitness.size());
+    std::vector<double> weights(size);
 
-    for (size_t i = 0; i < fitness.size(); i++) {
-        double f = fitness[i];
+    for (size_t i = 0; i < size; i++) {
+        double f = self->getFitness(i);
 
         if (selectMinimal) {
             // minimize fitness → lower is better
@@ -154,6 +174,10 @@ size_t BoltzmannSelection::operator()(const GAsm* self) {
     return weights.size() - 1;
 }
 
+std::unique_ptr<SelectionFunction> BoltzmannSelection::clone() const {
+    return std::make_unique<BoltzmannSelection>(*this);
+}
+
 
 void OnePointCrossover::operator()(const GAsm *self, std::vector<uint8_t> &worstIndividual,
                                    const std::vector<uint8_t> &bestIndividual1,
@@ -171,6 +195,10 @@ void OnePointCrossover::operator()(const GAsm *self, std::vector<uint8_t> &worst
 
     std::copy_n(bestIndividual1.data(), crossPoint, worstIndividual.data());
     std::copy_n(bestIndividual2.data() + crossPoint, bestIndividual2.size() - crossPoint, worstIndividual.data() + crossPoint);
+}
+
+std::unique_ptr<CrossoverFunction> OnePointCrossover::clone() const {
+    return std::make_unique<OnePointCrossover>(*this);
 }
 
 void TwoPointCrossover::operator()(const GAsm *self, std::vector<uint8_t> &worstIndividual,
@@ -200,6 +228,10 @@ void TwoPointCrossover::operator()(const GAsm *self, std::vector<uint8_t> &worst
     std::copy_n(bestIndividual1.data() + crossPoint2, bestIndividual2.size() - crossPoint2, worstIndividual.data() + crossPoint2);
 }
 
+std::unique_ptr<CrossoverFunction> TwoPointCrossover::clone() const {
+    return std::make_unique<TwoPointCrossover>(*this);
+}
+
 void UniformPointCrossover::operator()(const GAsm *self, std::vector<uint8_t> &worstIndividual,
                                        const std::vector<uint8_t> &bestIndividual1,
                                        const std::vector<uint8_t> &bestIndividual2) {
@@ -224,6 +256,10 @@ void UniformPointCrossover::operator()(const GAsm *self, std::vector<uint8_t> &w
     std::copy_n(biggerIndividual.data() + smallerIndividual.size(), biggerIndividual.size() - smallerIndividual.size(), worstIndividual.data() + smallerIndividual.size());
 }
 
+std::unique_ptr<CrossoverFunction> UniformPointCrossover::clone() const {
+    return std::make_unique<UniformPointCrossover>(*this);
+}
+
 void HardMutation::operator()(const GAsm *self, std::vector<uint8_t> &worstIndividual,
                               const std::vector<uint8_t> &bestIndividual) {
     static thread_local std::mt19937 rng(std::random_device{}());
@@ -237,6 +273,10 @@ void HardMutation::operator()(const GAsm *self, std::vector<uint8_t> &worstIndiv
             i = GAsmParser::base322Bytecode(byteDist(rng)); // mutate this byte
         }
     }
+}
+
+std::unique_ptr<MutationFunction> HardMutation::clone() const {
+    return std::make_unique<HardMutation>(*this);
 }
 
 static std::array<std::uniform_int_distribution<int>, INSTRUCTION_GROUPS> makeDists() {
@@ -266,6 +306,10 @@ void SoftMutation::operator()(const GAsm *self, std::vector<uint8_t> &worstIndiv
     }
 }
 
+std::unique_ptr<MutationFunction> SoftMutation::clone() const {
+    return std::make_unique<SoftMutation>(*this);
+}
+
 void FullGrow::operator()(const GAsm *self, std::vector<uint8_t> &individual) {
     individual.clear();
 
@@ -277,6 +321,10 @@ void FullGrow::operator()(const GAsm *self, std::vector<uint8_t> &individual) {
                   individual.end(),
                   [&](){ return GAsmParser::base322Bytecode(dist(engine));}
     );
+}
+
+std::unique_ptr<GrowFunction> FullGrow::clone() const {
+    return std::make_unique<FullGrow>(*this);
 }
 
 void TreeGrow::operator()(const GAsm *self, std::vector<uint8_t> &individual) {
@@ -328,4 +376,8 @@ void TreeGrow::grow(std::vector<uint8_t> &individual, size_t maxSize) { //NOLINT
     // zwykla instrukcja
     std::uniform_int_distribution<int> nd(0, (int)GAsmParser::normalOpcodesLength - 1);
     individual.push_back(GAsmParser::normalOpcodes[nd(engine)]);
+}
+
+std::unique_ptr<GrowFunction> TreeGrow::clone() const {
+    return std::make_unique<TreeGrow>(*this);
 }
