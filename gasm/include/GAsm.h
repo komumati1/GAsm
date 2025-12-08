@@ -42,7 +42,7 @@ private:
 
     std::vector<Runner> runners_;
 
-    double printGenerationStats(int gen);
+    double printGenerationStats(int gen, bool save = true);
     void printHeader(const GAsm* self);
 public:
     friend class Runner;

@@ -232,6 +232,38 @@ std::unique_ptr<CrossoverFunction> TwoPointCrossover::clone() const {
     return std::make_unique<TwoPointCrossover>(*this);
 }
 
+void TwoPointSizeCrossover::operator()(const GAsm *self, std::vector<uint8_t> &worstIndividual,
+                                       const std::vector<uint8_t> &bestIndividual1,
+                                       const std::vector<uint8_t> &bestIndividual2) {
+    if (bestIndividual1.empty() || bestIndividual2.empty()) return;
+
+    size_t minSize = std::min(bestIndividual1.size(), bestIndividual2.size());
+
+    static thread_local std::mt19937 rng(std::random_device{}());
+    std::uniform_int_distribution<size_t> dist(0, minSize - 1);
+
+    int crossPoint1 = (int)dist(rng);
+    int crossPoint2;
+    do {
+        crossPoint2 = (int)dist(rng);
+    } while (crossPoint1 == crossPoint2);
+
+    if (crossPoint1 > crossPoint2) {
+        std::swap(crossPoint1, crossPoint2);
+    }
+
+    size_t newSize = std::min<size_t>(crossPoint2 - crossPoint1 + bestIndividual2.size(), self->individualMaxSize);
+
+    worstIndividual.resize(newSize);
+
+    std::copy_n(bestIndividual1.data(), crossPoint2, worstIndividual.data());
+    std::copy_n(bestIndividual2.data() + crossPoint1, newSize - crossPoint2, worstIndividual.data() + crossPoint2);
+}
+
+std::unique_ptr<CrossoverFunction> TwoPointSizeCrossover::clone() const {
+    return std::make_unique<TwoPointSizeCrossover>(*this);
+}
+
 void UniformPointCrossover::operator()(const GAsm *self, std::vector<uint8_t> &worstIndividual,
                                        const std::vector<uint8_t> &bestIndividual1,
                                        const std::vector<uint8_t> &bestIndividual2) {
@@ -325,6 +357,23 @@ void FullGrow::operator()(const GAsm *self, std::vector<uint8_t> &individual) {
 
 std::unique_ptr<GrowFunction> FullGrow::clone() const {
     return std::make_unique<FullGrow>(*this);
+}
+
+void SizeGrow::operator()(const GAsm *self, std::vector<uint8_t> &individual) {
+    individual.clear();
+
+    static thread_local std::mt19937 engine(std::random_device{}());
+    std::uniform_int_distribution<int> dist(0, 31);
+
+    individual.resize(size_);
+    std::generate_n(individual.begin(),
+                    size_,
+                    [&](){ return GAsmParser::base322Bytecode(dist(engine));}
+    );
+}
+
+std::unique_ptr<GrowFunction> SizeGrow::clone() const {
+    return std::make_unique<SizeGrow>(*this);
 }
 
 void TreeGrow::operator()(const GAsm *self, std::vector<uint8_t> &individual) {

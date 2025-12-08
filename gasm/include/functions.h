@@ -102,6 +102,13 @@ public:
     [[nodiscard]] std::unique_ptr<CrossoverFunction> clone() const override;
 };
 
+class TwoPointSizeCrossover : public CrossoverFunction {
+public:
+    TwoPointSizeCrossover() = default;
+    void operator()(const GAsm* self, std::vector<uint8_t>& worstIndividual, const std::vector<uint8_t>& bestIndividual1, const std::vector<uint8_t>& bestIndividual2) override;
+    [[nodiscard]] std::unique_ptr<CrossoverFunction> clone() const override;
+};
+
 class UniformPointCrossover : public CrossoverFunction {
 public:
     UniformPointCrossover() = default;
@@ -140,6 +147,15 @@ public:
 class FullGrow : public GrowFunction {
 public:
     FullGrow() = default;
+    void operator()(const GAsm* self, std::vector<uint8_t>& individual) override;
+    [[nodiscard]] std::unique_ptr<GrowFunction> clone() const override;
+};
+
+class SizeGrow : public GrowFunction {
+private:
+    size_t size_;
+public:
+    explicit SizeGrow(size_t size) : size_(size) {}
     void operator()(const GAsm* self, std::vector<uint8_t>& individual) override;
     [[nodiscard]] std::unique_ptr<GrowFunction> clone() const override;
 };

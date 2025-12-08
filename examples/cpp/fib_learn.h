@@ -2,16 +2,20 @@
 #include "GAsm.h"
 
 void fibEvolution() {
+//    auto gasm = GAsm("../../../data/checkpoints/2025-12-08_15-02-54.json");
+//    gasm.maxGenerations = 20;
     auto gasm = GAsm();
-    gasm.setRegisterLength(10);
     // global
-    gasm.maxGenerations = 100;
-    gasm.populationSize = 100000;
+    gasm.setRegisterLength(10);
+    gasm.maxGenerations = 5;
+    gasm.populationSize = 1000;
     gasm.individualMaxSize = 100;
     gasm.minimize = true;
     gasm.goalFitness = 0.0;
     gasm.maxProcessTime = 10000;
     gasm.mutationProbability = 0.1;
+    gasm.outputFolder = "../../../data/checkpoints";
+    gasm.checkPointInterval = 20;
     // functions
 //    gasm.fitnessFunction = new FibFitness();
 //    gasm.crossoverFunction = new UniformPointCrossover();
@@ -19,7 +23,8 @@ void fibEvolution() {
 //    gasm.selectionFunction = new BoltzmannSelection(3);
 //    gasm.growFunction = new TreeGrow(3);
 //    gasm.mutationFunction = new HardMutation();
-//    gasm.setGrowFunction(std::make_unique<TreeGrow>(3));
+    gasm.setGrowFunction(std::make_unique<SizeGrow>(10));
+    gasm.setCrossoverFunction(std::make_unique<TwoPointSizeCrossover>());
 
     // input and target vectors
     std::vector<std::vector<double>> inputs = {

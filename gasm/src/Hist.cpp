@@ -12,7 +12,7 @@ Hist::Hist(nlohmann::json json)
         return;
 
     for (auto& e : json["entries"])
-        entries_.emplace_back(e);
+        entries_.emplace_back(std::move(Entry(e)));
 }
 
 void Hist::add(int generation,
