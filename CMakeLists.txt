@@ -1,99 +1,3 @@
-#cmake_minimum_required(VERSION 3.26)
-#project(gasm_python LANGUAGES CXX)
-#
-#set(CMAKE_CXX_STANDARD 23)
-#set(CMAKE_CXX_STANDARD_REQUIRED ON)
-#
-##set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
-#
-#include(FetchContent)
-#
-## -----------------------------------------------
-## Fetch external dependencies
-## -----------------------------------------------
-## nlohmann/json
-#FetchContent_Declare(
-#        json
-#        GIT_REPOSITORY https://github.com/nlohmann/json.git
-#        GIT_TAG v3.12.0
-#)
-#FetchContent_MakeAvailable(json)
-#
-## Xbyak
-#FetchContent_Declare(
-#        xbyak
-#        GIT_REPOSITORY https://github.com/herumi/xbyak.git
-#        GIT_TAG v7.30
-#)
-#FetchContent_MakeAvailable(xbyak)
-#
-## -----------------------------------------------
-## Build options
-## -----------------------------------------------
-#option(BUILD_PYTHON "Build Python extension module" OFF)
-#option(BUILD_EXAMPLES "Build C++ example CLI" ON)
-#
-### -----------------------------------------------
-### Core C++ library
-### -----------------------------------------------
-##add_subdirectory(gasm)
-#
-## -----------------------------------------------
-## Python extension module
-## -----------------------------------------------
-#if (BUILD_PYTHON)
-#    add_subdirectory(python)
-#endif()
-#
-## -----------------------------------------------
-## C++ example CLI
-## -----------------------------------------------
-#if (BUILD_EXAMPLES)
-#    add_subdirectory(examples/cpp)
-#endif()
-#
-## ----------------------------
-## Python module
-## ----------------------------
-#find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Module)
-#
-#if(NOT DEFINED EXT_SUFFIX)
-#    message(FATAL_ERROR "EXT_SUFFIX is not defined")
-#endif()
-
-#Python3_add_library(gasm_python MODULE
-#        gasm/python/GasmPython.cpp
-#        gasm/src/GAsmParser.cpp
-#        gasm/src/GAsm.cpp
-#        gasm/src/GP.cpp
-#        gasm/src/Entry.cpp
-#        gasm/src/Hist.cpp
-#        gasm/src/functions.cpp
-#        gasm/src/GAsmInterpreter.cpp
-#        gasm/src/GAsmCompiler.cpp
-#        gasm/src/jit_moves.cpp
-#        gasm/src/tests.cpp
-#)
-#
-#target_link_libraries(gasm_python PRIVATE
-#        Python3::Module
-#        nlohmann_json::nlohmann_json
-#)
-#
-#target_include_directories(gasm_python PRIVATE
-#        gasm/include
-#        gasm/python
-#        ${xbyak_SOURCE_DIR}/xbyak
-#        ${Python3_INCLUDE_DIRS}
-#        ${json_SOURCE_DIR}/single_include
-#)
-#
-#set_target_properties(gasm_python PROPERTIES
-#        OUTPUT_NAME "gasm"
-#        PREFIX ""
-#        SUFFIX "${EXT_SUFFIX}"
-#)
-
 cmake_minimum_required(VERSION 3.26)
 project(GAsm)
 
@@ -199,7 +103,7 @@ endif()
 # Python module
 # ----------------------------
 if (BUILD_PYTHON)
-    set(Python3_ROOT_DIR "C:/Users/mateu/AppData/Local/Programs/Python/Python311")
+    set(Python3_ROOT_DIR "C:/Users/mateu/AppData/Local/Programs/Python/Python311") # TODO your own interpreter
     set(Python3_FIND_REGISTRY FIRST)
     find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 
@@ -231,6 +135,16 @@ if (BUILD_PYTHON)
             gasm/src/Runner.cpp
             gasm/include/Runner.h
             gasm/include/utils.h
+            gasm/python/HistPython.cpp
+            gasm/python/HistPython.h
+            gasm/python/GasmModule.cpp
+            gasm/python/GasmModule.h
+            gasm/python/IndividualPython.cpp
+            gasm/python/IndividualPython.h
+            gasm/python/utils.cpp
+            gasm/python/utils.h
+            gasm/python/EntryPython.cpp
+            gasm/python/EntryPython.h
     )
 
     target_compile_options(GasmPython PRIVATE /std:c++20)

@@ -17,6 +17,8 @@ using run_fn_t = size_t (*)(double* inputs, size_t inputLength,
                             size_t maxProcessTime);
 
 using gen_fn_t = double(*)();
+//using gen_fn_t = std::function<double()>;
+
 
 class GAsmInterpreter {
 private:
@@ -26,7 +28,7 @@ private:
     run_fn_t compiled_;
 
     std::unique_ptr<gen_fn_t> cng_ = std::make_unique<gen_fn_t>([](){
-                static size_t counter = 0;
+                static thread_local size_t counter = 0;
                 return (double) counter++;});
     std::unique_ptr<gen_fn_t> rng_ = std::make_unique<gen_fn_t>([](){
                 static thread_local std::mt19937 engine(std::random_device{}());

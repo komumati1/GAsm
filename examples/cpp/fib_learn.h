@@ -1,5 +1,6 @@
 
 #include "GAsm.h"
+#include "GAsmInterpreter.h"
 
 void fibEvolution() {
 //    auto gasm = GAsm("../../../data/checkpoints/2025-12-08_15-02-54.json");
@@ -25,6 +26,9 @@ void fibEvolution() {
 //    gasm.mutationFunction = new HardMutation();
     gasm.setGrowFunction(std::make_unique<SizeGrow>(10));
     gasm.setCrossoverFunction(std::make_unique<TwoPointSizeCrossover>());
+    gen_fn_t func = [](){return 0.0;};
+    auto fn_ptr = std::make_unique<gen_fn_t >(func);
+    gasm.setCNG(std::make_unique<gen_fn_t>(*fn_ptr));
 
     // input and target vectors
     std::vector<std::vector<double>> inputs = {

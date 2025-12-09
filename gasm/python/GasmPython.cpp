@@ -2,10 +2,9 @@
 #include <Python.h>
 #include <vector>
 #include <iostream>
-
-// TODO update methods
-// TODO add Hist.py
-// TODO add Individual.py
+#include "HistPython.h"
+#include "IndividualPython.h"
+#include "utils.h"
 
 // --------- Helper: convert Python list -> vector<double> ----------
 static std::vector<double> toDoubleVector(PyObject* list) {
@@ -29,10 +28,6 @@ static std::vector<uint8_t> toByteVector(PyObject* list) {
 // ============================================================================
 //                           PyGAsm methods
 // ============================================================================
-
-static PyTypeObject PyGAsmType = {
-        PyVarObject_HEAD_INIT(NULL, 0)
-};
 
 static void PyGAsm_dealloc(PyGAsm* self) {
     delete self->cpp;
@@ -112,7 +107,7 @@ static PyObject* PyGAsm_evolve(PyGAsm* self, PyObject* args) {
     for (Py_ssize_t i = 0; i < nTar; i++)
         targets.push_back(toDoubleVector(PyList_GetItem(tarList, i)));
 
-    self->cpp->evolve(inputs, targets);
+    self->cpp->parallelEvolve(inputs, targets); /// TODO change between parallel and standard
     Py_RETURN_NONE;
 }
 
@@ -141,6 +136,123 @@ static PyObject* PyGAsm_fromJson(PyObject*, PyObject* args) {
     return (PyObject*)pyObj;
 }
 
+static PyObject* PyGAsm_setSelection(PyGAsm* self, PyObject* args) {
+    const char* mode;
+    int param = 0;
+
+    if (!PyArg_ParseTuple(args, "s|i", &mode, &param))
+        return nullptr;
+
+    std::string m(mode);
+
+    if (m == "Tournament") self->cpp->setSelectionFunction(std::make_unique<TournamentSelection>(param));
+    else if (m == "Truncation") self->cpp->setSelectionFunction(std::make_unique<TruncationSelection>(param));
+    else if (m == "Boltzman") self->cpp->setSelectionFunction(std::make_unique<BoltzmannSelection>(param));
+    else if (m == "Rank") self->cpp->setSelectionFunction(std::make_unique<RankSelection>());
+    else if (m == "Roulette") self->cpp->setSelectionFunction(std::make_unique<RouletteSelection>());
+    else {
+        PyErr_SetString(PyExc_ValueError, "Invalid selection literal");
+        return nullptr;
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject* PyGAsm_setGrow(PyGAsm* self, PyObject* args) {
+    const char* mode;
+    int param = 0;
+
+    if (!PyArg_ParseTuple(args, "s|i", &mode, &param))
+        return nullptr;
+
+    std::string m(mode);
+
+    if (m == "Size") self->cpp->setGrowFunction(std::make_unique<SizeGrow>(param));
+    else if (m == "Full") self->cpp->setGrowFunction(std::make_unique<FullGrow>());
+    else if (m == "Tree") self->cpp->setGrowFunction(std::make_unique<TreeGrow>(param));
+    else {
+        PyErr_SetString(PyExc_ValueError, "Invalid grow literal");
+        return nullptr;
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject* PyGAsm_setMutation(PyGAsm* self, PyObject* arg) {
+    if (!PyUnicode_Check(arg)) {
+        PyErr_SetString(PyExc_TypeError, "mutation must be a string literal");
+        return nullptr;
+    }
+
+    std::string m = PyUnicode_AsUTF8(arg);
+
+    if (m == "Hard") self->cpp->setMutationFunction(std::make_unique<HardMutation>());
+    else if (m == "Soft") self->cpp->setMutationFunction(std::make_unique<SoftMutation>());
+    else {
+        PyErr_SetString(PyExc_ValueError, "Invalid mutation literal");
+        return nullptr;
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject* PyGAsm_setCrossover(PyGAsm* self, PyObject* arg) {
+    if (!PyUnicode_Check(arg)) {
+        PyErr_SetString(PyExc_TypeError, "crossover must be a string literal");
+        return nullptr;
+    }
+
+    std::string m = PyUnicode_AsUTF8(arg);
+
+    if (m == "OnePoint") self->cpp->setCrossoverFunction(std::make_unique<OnePointCrossover>());
+    else if (m == "TwoPoint") self->cpp->setCrossoverFunction(std::make_unique<TwoPointCrossover>());
+    else if (m == "TwoPointSize") self->cpp->setCrossoverFunction(std::make_unique<TwoPointSizeCrossover>());
+    else if (m == "Uniform") self->cpp->setCrossoverFunction(std::make_unique<UniformPointCrossover>());
+    else {
+        PyErr_SetString(PyExc_ValueError, "Invalid crossover literal");
+        return nullptr;
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject* PyIndividual_setCNG(PyIndividual* self, PyObject* args) {
+    const char* spec = nullptr;
+    double start = 0.0;
+
+    if (!PyArg_ParseTuple(args, "sd", &spec, &start)) {
+        PyErr_SetString(PyExc_TypeError, "set_cng(spec: str, start: float)");
+        return nullptr;
+    }
+
+    try {
+        self->cpp->setCNG(makeCNG(std::string(spec), start));
+    } catch (const std::exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return nullptr;
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject* PyIndividual_setRNG(PyIndividual* self, PyObject* args) {
+    const char* spec = nullptr;
+    double start = 0.0;
+
+    if (!PyArg_ParseTuple(args, "sd", &spec, &start)) {
+        PyErr_SetString(PyExc_TypeError, "set_rng(spec: str, start: float)");
+        return nullptr;
+    }
+
+    try {
+        self->cpp->setRNG(makeRNG(std::string(spec), start));
+    } catch (const std::exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return nullptr;
+    }
+
+    Py_RETURN_NONE;
+}
 
 // ============================================================================
 //                             Method table
@@ -153,6 +265,12 @@ static PyMethodDef PyGAsm_methods[] = {
         {"evolve",     (PyCFunction)PyGAsm_evolve,     METH_VARARGS, "Run evolution"},
         {"save2File", (PyCFunction)PyGAsm_save2File, METH_VARARGS, "Save engine state to JSON file"},
         {"fromJson",  (PyCFunction)PyGAsm_fromJson,  METH_VARARGS | METH_STATIC, "Load engine state from JSON file"},
+        {"setSelection", (PyCFunction)PyGAsm_setSelection, METH_VARARGS, "Set selection mode"},
+        {"setGrow",      (PyCFunction)PyGAsm_setGrow,      METH_VARARGS, "Set grow mode"},
+        {"setMutation",  (PyCFunction)PyGAsm_setMutation,  METH_O,       "Set mutation type"},
+        {"setCrossover", (PyCFunction)PyGAsm_setCrossover, METH_O,       "Set crossover type"},
+        {"set_cng",    (PyCFunction)PyIndividual_setCNG,     METH_VARARGS, "Set CNG generator"},
+        {"set_rng",    (PyCFunction)PyIndividual_setRNG,     METH_VARARGS, "Set RNG generator"},
         {nullptr, nullptr, 0, nullptr}
 };
 
@@ -241,6 +359,64 @@ static int PyGAsm_set_maxProcessTime(PyGAsm* self, PyObject* val, void*) {
     return 0;
 }
 
+static PyObject* PyGAsm_get_best(PyGAsm* self, void*) {
+    Individual best = self->cpp->getBestIndividual();
+    return PyIndividual_newFromCPP(best);  // returns PyIndividual*
+}
+
+static PyObject* PyGAsm_get_hist(PyGAsm* self, void*) {
+    return PyHist_newFromCPP(&self->cpp->hist);  // depends on your field name
+}
+
+static PyObject* PyGAsm_get_outputFolder(PyGAsm* self, void*) {
+    return PyUnicode_FromString(self->cpp->outputFolder.c_str());
+}
+
+static int PyGAsm_set_outputFolder(PyGAsm* self, PyObject* val, void*) {
+    if (!PyUnicode_Check(val)) {
+        PyErr_SetString(PyExc_TypeError, "outputFolder must be a string");
+        return -1;
+    }
+    self->cpp->outputFolder = PyUnicode_AsUTF8(val);
+    return 0;
+}
+
+static PyObject* PyGAsm_get_nanPenalty(PyGAsm* self, void*) {
+    return PyFloat_FromDouble(self->cpp->nanPenalty);
+}
+
+static int PyGAsm_set_nanPenalty(PyGAsm* self, PyObject* val, void*) {
+    if (!PyFloat_Check(val) && !PyLong_Check(val)) {
+        PyErr_SetString(PyExc_TypeError, "nanPenalty must be a number");
+        return -1;
+    }
+    self->cpp->nanPenalty = PyFloat_AsDouble(val);
+    return 0;
+}
+
+static PyObject* PyGAsm_get_useCompile(PyGAsm* self, void*) {
+    if (self->cpp->getCompile())
+        Py_RETURN_TRUE;
+    Py_RETURN_FALSE;
+}
+
+static int PyGAsm_set_useCompile(PyGAsm* self, PyObject* val, void*) {
+    int isTrue = PyObject_IsTrue(val);
+    if (isTrue < 0) return -1;
+    self->cpp->setCompile((bool)isTrue);
+    return 0;
+}
+
+static PyObject* PyGAsm_get_checkpointInterval(PyGAsm* self, void*) {
+    return PyLong_FromSize_t(self->cpp->checkPointInterval);
+}
+
+static int PyGAsm_set_checkpointInterval(PyGAsm* self, PyObject* val, void*) {
+    self->cpp->checkPointInterval = PyLong_AsSize_t(val);
+    return (PyErr_Occurred() ? -1 : 0);
+}
+
+
 
 // ============================================================================
 //                           Attributes table
@@ -289,7 +465,12 @@ static PyGetSetDef PyGAsm_getset[] = {
                 (getter) PyGAsm_get_maxProcessTime,
                 (setter) PyGAsm_set_maxProcessTime,
                 "max process time", nullptr},
-
+        {"best",            (getter)PyGAsm_get_best,            nullptr,                            "best individual", nullptr},
+        {"hist",            (getter)PyGAsm_get_hist,            nullptr,                            "history", nullptr},
+        {"outputFolder",    (getter)PyGAsm_get_outputFolder,    (setter)PyGAsm_set_outputFolder,    "output folder", nullptr},
+        {"nanPenalty",      (getter)PyGAsm_get_nanPenalty,      (setter)PyGAsm_set_nanPenalty,      "NaN penalty", nullptr},
+        {"useCompile",      (getter)PyGAsm_get_useCompile,      (setter)PyGAsm_set_useCompile,      "JIT compile flag", nullptr},
+        {"checkpointInterval", (getter)PyGAsm_get_checkpointInterval, (setter)PyGAsm_set_checkpointInterval, "checkpoint interval", nullptr},
         {nullptr}
 };
 
@@ -298,7 +479,11 @@ static PyGetSetDef PyGAsm_getset[] = {
 //                         Python type object
 // ============================================================================
 
-static void init_PyGAsmType() {
+PyTypeObject PyGAsmType = {
+        PyVarObject_HEAD_INIT(NULL, 0)
+};
+
+void init_PyGAsmType() {
     PyGAsmType.tp_name = "gasm.GAsm";
     PyGAsmType.tp_basicsize = sizeof(PyGAsm);
     PyGAsmType.tp_dealloc = (destructor)PyGAsm_dealloc;
@@ -306,34 +491,5 @@ static void init_PyGAsmType() {
     PyGAsmType.tp_methods = PyGAsm_methods;
     PyGAsmType.tp_new = PyGAsm_new;
     PyGAsmType.tp_getset = PyGAsm_getset;
-}
-
-
-// ============================================================================
-//                           Module definition
-// ============================================================================
-
-static PyModuleDef gasmModule = {
-        PyModuleDef_HEAD_INIT,
-        "gasm",
-        "Python bindings for GAsm engine",
-        -1,
-        nullptr
-};
-
-PyMODINIT_FUNC PyInit_gasm(void) {
-    init_PyGAsmType();
-
-    if (PyType_Ready(&PyGAsmType) < 0)
-        return nullptr;
-
-    PyObject* m = PyModule_Create(&gasmModule);
-    if (!m)
-        return nullptr;
-
-    Py_INCREF(&PyGAsmType);
-    PyModule_AddObject(m, "GAsm", (PyObject*)&PyGAsmType);
-
-    return m;
 }
 

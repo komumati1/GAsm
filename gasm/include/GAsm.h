@@ -19,6 +19,7 @@ unsigned int operator ""_max_gen(unsigned long long int);
 #include <string>
 #include <cfloat>
 #include <thread>
+#include <mutex>
 #include "Hist.h"
 #include "functions.h"
 #include "GAsmInterpreter.h"

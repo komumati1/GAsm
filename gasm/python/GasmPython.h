@@ -11,7 +11,8 @@ typedef struct {
     GAsm* cpp;
 } PyGAsm;
 
-// Module init
-PyMODINIT_FUNC PyInit_gasm(void);
+extern PyTypeObject PyGAsmType;
+
+void init_PyGAsmType();
 
 #endif
