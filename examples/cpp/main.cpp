@@ -1,5 +1,5 @@
 #include <iostream>
-#include <profileapi.h>
+// #include <profileapi.h>
 #include "GAsmParser.h"
 #include "GAsm.h"
 #include "GAsmInterpreter.h"
@@ -58,12 +58,12 @@ int main() {
 //    exampleFromFile();
 //    exampleFib();
 //    exampleJIT();
-//    exampleCompile();
-//    CppvsGAsm();
-//    std::cout << "==============================================" << std::endl;
-//    InterpreterVsCompiler();
-//    std::cout << "==============================================" << std::endl;
-    fibEvolution();
+    exampleCompile();
+    // CppvsGAsm();
+    // std::cout << "==============================================" << std::endl;
+    // InterpreterVsCompiler();
+    // std::cout << "==============================================" << std::endl;
+    // fibEvolution();
     return 0;
 }
 

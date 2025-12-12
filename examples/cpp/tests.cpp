@@ -1,8 +1,36 @@
 #include <vector>
 #include <iostream>
-#include <profileapi.h>
+// #include <profileapi.h>
+#include <cstring>
+
 #include "GAsmParser.h"
 #include "GAsmInterpreter.h"
+
+
+
+#ifdef _WIN64
+    #include <profileapi.h>  // zamiast profileapi.h
+#else
+    #include <chrono>
+    // nasze definicje zastępcze:
+    struct LARGE_INTEGER {
+        long long QuadPart;
+    };
+
+inline void QueryPerformanceCounter(LARGE_INTEGER* x) {
+    auto now = std::chrono::high_resolution_clock::now().time_since_epoch();
+    x->QuadPart =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
+}
+
+inline void QueryPerformanceFrequency(LARGE_INTEGER* f) {
+    // liczba "tyknięć" na sekundę – bierzemy 1e9, bo używamy nanosekund
+    f->QuadPart = 1000000000LL;
+}
+#endif
+
+
+
 
 size_t fib(double* inputs, size_t inputLength, double* registers, size_t registerLength, double (*constants)(), double (*rng)(), size_t maxProcessTime) {
     double p2 = 1;
@@ -43,7 +71,8 @@ void CppvsGAsm() {
     double fibCount = 1000.0;
     double* inputs = new double[]{fibCount}; // NOLINT
     constexpr size_t registerLength = 2;
-    double regs[registerLength]; memset(regs, 0, sizeof(regs));
+    double regs[registerLength];
+    std::memset(regs, 0, sizeof(regs));
     size_t maxProcessTime = 100000;
     double (*cng)() = +[](){ return 0.0; };
     double (*rng)() = +[](){ return 0.0; };
