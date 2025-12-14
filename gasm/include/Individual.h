@@ -16,13 +16,27 @@ private:
     std::vector<uint8_t> bytecode_;
 public:
     // constructors
-    explicit Individual(std::vector<uint8_t> bytecode) : jit_(bytecode, 1) , bytecode_(std::move(bytecode)){}
+    explicit Individual(std::vector<uint8_t> bytecode) : jit_(bytecode, 1) , bytecode_(std::move(bytecode)){ jit_.setProgram(bytecode_); }
     explicit Individual(const std::string& text) : jit_(1) {
         size_t len;
         uint8_t* bytes = GAsmParser::text2Bytecode(text, len);
         bytecode_.assign(bytes, bytes + len);
         jit_.setProgram(bytecode_);
     }
+    Individual(const Individual& other) : jit_(other.jit_), bytecode_(other.bytecode_) {}
+    Individual& operator=(const Individual& other) {
+        if (this != &other) {
+            jit_ = other.jit_;
+            bytecode_ = other.bytecode_;
+        }
+        return *this;}
+    Individual(Individual&& other) noexcept : jit_(std::move(other.jit_)), bytecode_(std::move(other.bytecode_)) {}
+    Individual& operator=(Individual&& other) noexcept {
+        if (this != &other) {
+            jit_ = std::move(other.jit_);
+            bytecode_ = std::move(other.bytecode_);
+        }
+        return *this;}
     ~Individual() = default;
 
     // runner setters and getters
@@ -34,6 +48,7 @@ public:
     void setRNG(std::unique_ptr<gen_fn_t> rng) { jit_.setRng(std::move(rng)); }
     [[nodiscard]] const bool& getCompile() const { return jit_.useCompile; }
     void setCompile(const bool& useCompile) { jit_.useCompile = useCompile; }
+    [[nodiscard]] const std::vector<uint8_t>& getBytecode() const { return bytecode_; }
 
     // public runner attributes
     size_t maxProcessTime = 10000;

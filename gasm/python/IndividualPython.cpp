@@ -4,6 +4,7 @@
 
 #include "IndividualPython.h"
 #include <sstream>
+#include <iostream>
 #include <stdexcept>
 #include "utils.h"
 
@@ -91,8 +92,18 @@ static PyObject* PyIndividual_run(PyIndividual* self, PyObject* arg) {
         }
         inputs.push_back(PyFloat_AsDouble(item));
     }
+    // FIXME this is such a dirty fix
+    std::vector<uint8_t> code = self->cpp->getBytecode();
+    GAsmInterpreter jit = GAsmInterpreter(code, self->cpp->getRegisterLength());
+    jit.useCompile = self->cpp->getCompile();
+    jit.setCng(std::make_unique<gen_fn_t>(self->cpp->getCNG()));
+    jit.setRng(std::make_unique<gen_fn_t>(self->cpp->getRNG()));
+    size_t result = jit.run(inputs, self->cpp->maxProcessTime);
+//    size_t result = self->cpp->run(inputs);
+    for (Py_ssize_t i = 0; i < n; i++) {
+        PyList_SetItem(arg, i, PyFloat_FromDouble(inputs[i]));
+    }
 
-    size_t result = self->cpp->run(inputs);
     return PyLong_FromSize_t(result);
 }
 

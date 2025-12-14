@@ -8,14 +8,14 @@ void fibEvolution() {
     auto gasm = GAsm();
     // global
     gasm.setRegisterLength(10);
-    gasm.maxGenerations = 5;
+    gasm.maxGenerations = 1;
     gasm.populationSize = 1000;
     gasm.individualMaxSize = 100;
     gasm.minimize = true;
     gasm.goalFitness = 0.0;
     gasm.maxProcessTime = 10000;
     gasm.mutationProbability = 0.1;
-    gasm.outputFolder = "../../../data/checkpoints";
+//    gasm.outputFolder = "../../../data/checkpoints";
     gasm.checkPointInterval = 20;
     // functions
 //    gasm.fitnessFunction = new FibFitness();
@@ -42,6 +42,15 @@ void fibEvolution() {
     };
     // evolution
     gasm.parallelEvolve(inputs, targets);
+
+    auto ind = gasm.getBestIndividual();
+    auto input = inputs[0];
+    auto* ind2 = new Individual(ind);
+    auto time = ind2->run(input);
+    std::cout << "result: " << input[0] << std::endl;
+    std::cout << "time: " << time << std::endl;
     // save
     gasm.save2File("../../../data/fib3.json");
+
+
 }

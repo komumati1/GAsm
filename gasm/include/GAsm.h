@@ -68,7 +68,15 @@ public:
     [[nodiscard]] const GrowFunction& grow() const { return *growFunction_; }
     void setGrowFunction(std::unique_ptr<GrowFunction> g) { growFunction_ = std::move(g);
         std::for_each(runners_.begin(), runners_.end(), [this](Runner& r){ r.setGrowFunction(growFunction_->clone()); }); }
-    [[nodiscard]] Individual getBestIndividual() const { return Individual(bestIndividual); }
+    [[nodiscard]] Individual getBestIndividual() const {
+        auto ind = Individual(bestIndividual);
+        ind.setRegisterLength(getRegisterLength());
+        ind.maxProcessTime = maxProcessTime;
+        ind.setCompile(getCompile());
+        ind.setCNG(std::make_unique<gen_fn_t>(getCNG()));
+        ind.setRNG(std::make_unique<gen_fn_t>(getRNG()));
+        return ind;
+    }
 
     // thread safe setters and getters
     std::vector<uint8_t> getIndividual(size_t idx) const {

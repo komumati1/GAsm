@@ -96,5 +96,5 @@ void Entry::setBestBytecode(const std::vector<uint8_t> &bestBytecode) {
 }
 
 Individual Entry::getBestIndividual() const {
-    return Individual(bestIndividual_);
+    return Individual(bestIndividual_); // FIXME it fills with default parameters
 }

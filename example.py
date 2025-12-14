@@ -56,8 +56,9 @@ print(entry.best.toString())
 print(entries)
 
 input = [1.0]
-# result = best_individual.run(input)
-# print(result)
+time = best_individual.run(input)
+print(f"Process time: {time}")
+print(f"Result: {input}")
 
 print(best_individual.toString())
 
