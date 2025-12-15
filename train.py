@@ -29,20 +29,23 @@ g.setCrossover("TwoPointSize")  # Literal["OnePoint", "TwoPoint", "TwoPointSize"
 # g.set_cng("increment", 1)       #  Literal["increment", "constant"], number does not work XD, it crashes don't use XD
 # g.set_rng("random", 1)          #  Literal["random", "constant"], number does not work XD, it crashes don't use XD
 
-inputs = [[1], [2], [3], [4], [5], [6], [7], [8], [9], [10],]
+# inputs = [[1], [2], [3], [4], [5], [6], [7], [8], [9], [10],]
+#
+# targets = [[1], [1], [2], [3], [5], [8], [13], [21], [34], [55],]
 
-targets = [[1], [1], [2], [3], [5], [8], [13], [21], [34], [55],]
+test_case = 11
 
-# inputs, targets = gen_11_anypos_constant(100, 100, 10, 1)
+
+inputs, targets = gen_11_anypos_constant(100, 100, 10, 1)
 
 g.evolve(inputs, targets)
 
-g.save2File("data/example.json")
+g.save2File(f"data/example_{test_case}.json")
 
 # Continue from file DON'T CHANGE POPULATION SIZE
-g = gasm.GAsm.fromJson("data/example.json")
-g.maxGenerations = 7
-g.evolve(inputs, targets)
+# g = gasm.GAsm.fromJson(f"data/example_{test_case}.json")
+# g.maxGenerations = 7
+# g.evolve(inputs, targets)
 
 hist = g.hist
 best_individual = g.best
