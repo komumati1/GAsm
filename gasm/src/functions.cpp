@@ -31,6 +31,48 @@ std::unique_ptr<FitnessFunction> Fitness::clone() const {
     return std::make_unique<Fitness>(*this);
 }
 
+static inline bool isFinite(double x) { return std::isfinite(x); }
+
+static inline double absErr(double pred, double truth, double nanPenalty) {
+    const double diff = pred - truth;
+    return isFinite(diff) ? std::fabs(diff) : nanPenalty;
+}
+
+std::pair<double, double> FitnessAnyPositionConstant::operator()(
+    const GAsm* self, GAsmInterpreter& jit, const std::vector<uint8_t>& individual
+) {
+    jit.setProgram(individual);
+
+    double score = 0.0;
+    double avgTime = 0.0;
+
+    for (int i = 0; i < (int)self->inputs.size(); ++i) {
+        std::vector<double> io = self->inputs[i];
+        const auto& target = self->targets[i]; // target[0] = C
+        avgTime += (double)jit.run(io, self->maxProcessTime);
+
+        const double C = target[0];
+
+        // bierzemy najlepsze trafienie "gdziekolwiek"
+        double best = self->nanPenalty;
+        for (double v : io) {
+            best = std::min(best, absErr(v, C, self->nanPenalty));
+        }
+
+        // opcjonalnie: lekkie parsimony przeciwko "zaśmiecaniu" wielu komórek
+        // (nie wymagane w 1.1.B/C, ale często stabilizuje)
+        // score += best + 0.001 * (double)io.size();
+        score += best;
+    }
+
+    avgTime /= (double)self->inputs.size();
+    return {score, avgTime};
+}
+
+std::unique_ptr<FitnessFunction> FitnessAnyPositionConstant::clone() const {
+    return std::make_unique<FitnessAnyPositionConstant>(*this);
+}
+
 size_t TournamentSelection::operator()(const GAsm *self) {
     static thread_local std::mt19937 rng(std::random_device{}());
     std::uniform_int_distribution<size_t> dist(0, self->populationSize - 1);

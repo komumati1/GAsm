@@ -103,7 +103,8 @@ endif()
 # Python module
 # ----------------------------
 if (BUILD_PYTHON)
-    set(Python3_ROOT_DIR "C:/Users/mateu/AppData/Local/Programs/Python/Python311") # TODO your own interpreter
+#    set(Python3_ROOT_DIR "C:/Users/mateu/AppData/Local/Programs/Python/Python311") # TODO your own interpreter
+    set(Python3_ROOT_DIR "/home/konrad/.pyenv/shims/python3") # TODO your own interpreter
     set(Python3_FIND_REGISTRY FIRST)
     find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 
@@ -147,7 +148,7 @@ if (BUILD_PYTHON)
             gasm/python/EntryPython.h
     )
 
-    target_compile_options(GasmPython PRIVATE /std:c++20)
+#    target_compile_options(GasmPython PRIVATE /std:c++20)
 
 
     # Fix name so Python can import it: gasm.pyd or gasm.so
