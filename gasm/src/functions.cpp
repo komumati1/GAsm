@@ -9,6 +9,7 @@
 #include "functions.h"
 #include "GAsm.h"
 #include "GAsmParser.h"
+#include <cstdlib>
 #include <iostream>
 
 std::pair<double, double> Fitness::operator()(const GAsm* self, GAsmInterpreter& jit, const std::vector<uint8_t> &individual) {
@@ -38,6 +39,14 @@ static inline double absErr(double pred, double truth, double nanPenalty) {
     return isFinite(diff) ? std::fabs(diff) : nanPenalty;
 }
 
+static inline long long roundToInt(double x, long long clampAbs = 1'000'000'000LL) {
+    if (!std::isfinite(x)) return 0;
+    long long v = (long long)std::llround(x);
+    if (v >  clampAbs) v =  clampAbs;
+    if (v < -clampAbs) v = -clampAbs;
+    return v;
+}
+
 std::pair<double, double> FitnessAnyPositionConstant::operator()(
     const GAsm* self, GAsmInterpreter& jit, const std::vector<uint8_t>& individual
 ) {
@@ -56,12 +65,13 @@ std::pair<double, double> FitnessAnyPositionConstant::operator()(
         // bierzemy najlepsze trafienie "gdziekolwiek"
         double best = self->nanPenalty;
         for (double v : io) {
-            best = std::min(best, absErr(v, C, self->nanPenalty));
+            // if (!std::isfinite(v)) { best = std::min(best, self->nanPenalty); continue; }
+
+            long long vi = roundToInt(v);
+            double err = std::fabs((double)(vi - C));   // błąd liczony po int
+            best = std::min(best, err);
         }
 
-        // opcjonalnie: lekkie parsimony przeciwko "zaśmiecaniu" wielu komórek
-        // (nie wymagane w 1.1.B/C, ale często stabilizuje)
-        // score += best + 0.001 * (double)io.size();
         score += best;
     }
 
@@ -72,6 +82,70 @@ std::pair<double, double> FitnessAnyPositionConstant::operator()(
 std::unique_ptr<FitnessFunction> FitnessAnyPositionConstant::clone() const {
     return std::make_unique<FitnessAnyPositionConstant>(*this);
 }
+
+
+static inline long long truncToInt(double x, long long clampAbs = 1'000'000'000LL) {
+    if (!std::isfinite(x)) return 0; // i tak ukarzesz nanPenalty wyżej
+    long long v = (long long)x;      // C++ cast: trunc w stronę zera
+    if (v >  clampAbs) v =  clampAbs;
+    if (v < -clampAbs) v = -clampAbs;
+    return v;
+}
+
+static inline double unchangedPenalty(const std::vector<double>& before,
+                                      const std::vector<double>& after,
+                                      size_t startIdx,
+                                      double weight,
+                                      double eps = 1e-12) {
+    double p = 0.0;
+    const size_t n = std::min(before.size(), after.size());
+    for (size_t i = startIdx; i < n; ++i) {
+        if (!isFinite(before[i]) || !isFinite(after[i])) {
+            if (!(std::isnan(before[i]) && std::isnan(after[i]))) p += weight;
+        } else if (std::fabs(before[i] - after[i]) > eps) {
+            p += weight * std::min(1.0, std::fabs(after[i] - before[i]));
+        }
+    }
+    return p;
+}
+static inline double intAbsErr(long long pred, long long truth) {
+    return (double)std::llabs(pred - truth);
+}
+
+std::pair<double, double> FitnessSumSub::operator()(
+    const GAsm* self, GAsmInterpreter& jit, const std::vector<uint8_t>& individual
+) {
+    jit.setProgram(individual);
+
+    double score = 0.0;
+    double avgTime = 0.0;
+
+    const double extraWriteWeight = 5.0;
+
+    for (int i = 0; i < (int)self->inputs.size(); ++i) {
+        std::vector<double> io = self->inputs[i];
+        std::vector<double> before = io;
+        const auto& target = self->targets[i];
+
+        avgTime += (double)jit.run(io, self->maxProcessTime);
+
+        long long pred  = truncToInt(io[0]);
+        long long truth = truncToInt(target[0]);
+
+        score += isFinite(io[0]) ? intAbsErr(pred, truth) : self->nanPenalty;
+        score += unchangedPenalty(before, io, 1, extraWriteWeight);
+    }
+
+    avgTime /= (double)self->inputs.size();
+    return {score, avgTime};
+}
+
+std::unique_ptr<FitnessFunction> FitnessSumSub::clone() const {
+    return std::make_unique<FitnessSumSub>(*this);
+}
+
+
+
 
 size_t TournamentSelection::operator()(const GAsm *self) {
     static thread_local std::mt19937 rng(std::random_device{}());

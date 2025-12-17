@@ -1,5 +1,5 @@
 import gasm
-from data_generators import gen_11_anypos_constant
+from data_generators import gen_11_anypos_constant, gen_binop_sum_sub_mul, gen_max_dataset, gen_mean10_dataset
 
 """
 1. Change the CMakeLists.txt, line 106, change to your interpreter (3.11)
@@ -13,31 +13,33 @@ g.populationSize = 10000
 g.individualMaxSize = 50
 g.mutationProbability = 0.2
 g.crossoverProbability = 0.9
-g.maxGenerations = 3
+g.maxGenerations = 100
 g.goalFitness = 0.0
 g.minimize = True
 g.registerLength = 10
 g.maxProcessTime = 10000
 g.outputFolder = "data/checkpoints"
-g.nanPenalty = 1e1
+g.nanPenalty = 1e3
 g.useCompile = True
 g.checkpointInterval = 2
-g.setSelection("Tournament", 3) # Literal["Tournament", "Truncation", "Boltzman", "Rank", "Roulette"], number works set temperature or tournament size
-g.setGrow("Size", 10)           # Literal["Size", "Full", "Tree"], number works set depth or start size
+g.setSelection("Tournament", 7) # Literal["Tournament", "Truncation", "Boltzman", "Rank", "Roulette"], number works set temperature or tournament size
+g.setGrow("Size", 12)           # Literal["Size", "Full", "Tree"], number works set depth or start size
 g.setMutation("Hard")           # Literal["Hard", "Soft"]
 g.setCrossover("TwoPointSize")  # Literal["OnePoint", "TwoPoint", "TwoPointSize", "Uniform"]
 # g.set_cng("increment", 1)       #  Literal["increment", "constant"], number does not work XD, it crashes don't use XD
 # g.set_rng("random", 1)          #  Literal["random", "constant"], number does not work XD, it crashes don't use XD
 
-# inputs = [[1], [2], [3], [4], [5], [6], [7], [8], [9], [10],]
-#
-# targets = [[1], [1], [2], [3], [5], [8], [13], [21], [34], [55],]
 
-test_case = 11
+test_case = "1_4_A_1"
 
+# 1.1.B
+# inputs, targets = gen_11_anypos_constant(789, n=100, buf=100, seed=42)
+# inputs, targets = gen_binop_sum_sub_mul("mul", n_random=800, buf=10, seed=1)  # 1.2.C
 
-inputs, targets = gen_11_anypos_constant(100, 100, 10, 1)
-
+# inputs, targets = gen_max_dataset(lo=-50, hi=50, n=800, buf=10, seed=42)
+inputs, targets = gen_mean10_dataset(lo=-50, hi=50, n=800, buf=10, seed=7)
+# print(inputs[0])
+# print(targets[0])
 g.evolve(inputs, targets)
 
 g.save2File(f"data/example_{test_case}.json")
@@ -58,15 +60,16 @@ print(f"generation: {entry.generation}")
 print(f"best_fitness: {entry.best_fitness}")
 print(f"avg_fitness: {entry.avg_fitness}")
 print(f"avg_size: {entry.avg_size}")
-print(entry.best.toString())
-print(entries)
+# print(entry.best.toString())
+# print(entries)
 
-input = [1.0, 2.0]
+# input = [1.0, 2.0, 3.0]
+input = [float(x) for x in inputs[0]]
 time = best_individual.run(input)
 print(f"Process time: {time}")
 print(f"Result: {input}")
 
-print(best_individual.toString())
+# print(best_individual.toString())
 
 best_individual.set_cng("increment", 1)
 best_individual.set_rng("random", 1)

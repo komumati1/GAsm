@@ -37,6 +37,13 @@ public:
     [[nodiscard]] std::unique_ptr<FitnessFunction> clone() const override;
 };
 
+class FitnessSumSub: public FitnessFunction {
+public:
+    FitnessSumSub() = default;
+    std::pair<double, double> operator()(const GAsm* self, GAsmInterpreter& jit, const std::vector<uint8_t>& individual) override;
+    [[nodiscard]] std::unique_ptr<FitnessFunction> clone() const override;
+};
+
 class SelectionFunction {
 public:
     bool selectMinimal = true;

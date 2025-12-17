@@ -37,7 +37,7 @@ static void PyGAsm_dealloc(PyGAsm* self) {
 static PyObject* PyGAsm_new(PyTypeObject* type, PyObject*, PyObject*) {
     PyGAsm* self = (PyGAsm*)type->tp_alloc(type, 0);
     if (self) self->cpp = new GAsm();
-    self->cpp->setFitnessFunction(std::make_unique<FitnessAnyPositionConstant>());
+    self->cpp->setFitnessFunction(std::make_unique<FitnessSumSub>());
     return (PyObject*)self;
 }
 

@@ -14,7 +14,8 @@
 #include <boost/multiprecision/cpp_bin_float.hpp>
 
 GAsm::GAsm() : runner_(1), population_(0), fitness_(1), rank_(1) {
-    unsigned int numThreads = std::thread::hardware_concurrency();
+    // unsigned int numThreads = std::thread::hardware_concurrency();
+    unsigned int numThreads = 2;
     if (numThreads == 0) numThreads = 4; // fallback
     runners_.reserve(numThreads);
 
@@ -24,7 +25,8 @@ GAsm::GAsm() : runner_(1), population_(0), fitness_(1), rank_(1) {
 }
 
 GAsm::GAsm(const std::string &filename) : runner_(1) {
-    unsigned int numThreads = std::thread::hardware_concurrency();
+    // unsigned int numThreads = std::thread::hardware_concurrency();
+    unsigned int numThreads = 2;
     if (numThreads == 0) numThreads = 4; // fallback
     runners_.reserve(numThreads);
 
