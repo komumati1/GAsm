@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/temp.linux-x86_64-cpython-312/_deps/boost_assert-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/temp.linux-x86_64-cpython-312/_deps/boost_config-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/temp.linux-x86_64-cpython-312/_deps/boost_core-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/temp.linux-x86_64-cpython-312/_deps/boost_integer-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/temp.linux-x86_64-cpython-312/_deps/boost_mpl-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/temp.linux-x86_64-cpython-312/_deps/boost_multiprecision-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/temp.linux-x86_64-cpython-312/_deps/boost_predef-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/temp.linux-x86_64-cpython-312/_deps/boost_rational-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/temp.linux-x86_64-cpython-312/_deps/boost_static_assert-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/temp.linux-x86_64-cpython-312/_deps/boost_throw_exception-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/temp.linux-x86_64-cpython-312/_deps/boost_type_traits-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/temp.linux-x86_64-cpython-312/_deps/json-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/temp.linux-x86_64-cpython-312/_deps/xbyak-src" vcs="Git" />
+  </component>
+</project>

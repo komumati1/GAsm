@@ -44,6 +44,30 @@ public:
     [[nodiscard]] std::unique_ptr<FitnessFunction> clone() const override;
 };
 
+
+class FitnessNegToZeroVec: public FitnessFunction {
+public:
+    FitnessNegToZeroVec() = default;
+    std::pair<double, double> operator()(const GAsm* self, GAsmInterpreter& jit, const std::vector<uint8_t>& individual) override;
+    [[nodiscard]] std::unique_ptr<FitnessFunction> clone() const override;
+};
+
+
+class FitnessBooleanK: public FitnessFunction {
+public:
+    FitnessBooleanK() = default;
+    std::pair<double, double> operator()(const GAsm* self, GAsmInterpreter& jit, const std::vector<uint8_t>& individual) override;
+    [[nodiscard]] std::unique_ptr<FitnessFunction> clone() const override;
+};
+
+
+class FitnessArithSeq: public FitnessFunction {
+public:
+    FitnessArithSeq() = default;
+    std::pair<double, double> operator()(const GAsm* self, GAsmInterpreter& jit, const std::vector<uint8_t>& individual) override;
+    [[nodiscard]] std::unique_ptr<FitnessFunction> clone() const override;
+};
+
 class SelectionFunction {
 public:
     bool selectMinimal = true;

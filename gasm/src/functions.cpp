@@ -145,7 +145,151 @@ std::unique_ptr<FitnessFunction> FitnessSumSub::clone() const {
 }
 
 
+std::pair<double, double> FitnessNegToZeroVec::operator()(
+    const GAsm* self, GAsmInterpreter& jit, const std::vector<uint8_t>& individual
+) {
+    jit.setProgram(individual);
 
+    double score = 0.0;
+    double avgTime = 0.0;
+
+    // USTAW: ile elementów wektora ma być przetwarzane (musi odpowiadać generatorowi danych)
+    const int L = 8;
+
+    // kara za zmiany poza pierwszymi L elementami (żeby nie "produkował" śmieci)
+    const double extraWriteWeight = 1.0;
+
+    for (int i = 0; i < (int)self->inputs.size(); ++i) {
+        std::vector<double> io = self->inputs[i];
+        std::vector<double> before = io;
+        const auto& target = self->targets[i]; // target ma długość L
+
+        avgTime += (double)jit.run(io, self->maxProcessTime);
+
+        // błąd sumowany po elementach 0..L-1
+        for (int j = 0; j < L; ++j) {
+            if (!std::isfinite(io[j])) {
+                score += self->nanPenalty;
+                continue;
+            }
+            long long pred  = truncToInt(io[j]);
+            long long truth = truncToInt(target[j]);
+            score += (double)std::llabs(pred - truth);
+        }
+
+        // nie psuj reszty bufora (SENT)
+        score += unchangedPenalty(before, io, (size_t)L, extraWriteWeight);
+    }
+
+    avgTime /= (double)self->inputs.size();
+    return {score, avgTime};
+}
+
+std::unique_ptr<FitnessFunction> FitnessNegToZeroVec::clone() const {
+    return std::make_unique<FitnessNegToZeroVec>(*this);
+}
+
+
+
+std::pair<double, double> FitnessBooleanK::operator()(
+    const GAsm* self, GAsmInterpreter& jit, const std::vector<uint8_t>& individual
+) {
+    jit.setProgram(individual);
+
+    double score = 0.0;
+    double avgTime = 0.0;
+
+    const int k = 5;                 // <-- ustaw na aktualne k
+    const bool addConstants = true;  // jeśli w danych dajesz [1,0]
+    const int startProtected = k + (addConstants ? 2 : 0);
+
+    const double wrongCasePenalty = 1.0;   // Hamming
+    const double softWeight = 0.05;        // miękki składnik (opcjonalnie)
+    const double extraWriteWeight = 0.2;   // nie za duże! (program może używać rejestrów)
+
+    for (int i = 0; i < (int)self->inputs.size(); ++i) {
+        std::vector<double> io = self->inputs[i];
+        std::vector<double> before = io;
+        const auto& target = self->targets[i]; // target[0] = 0/1
+
+        avgTime += (double)jit.run(io, self->maxProcessTime);
+
+        int truth = (target[0] >= 0.5) ? 1 : 0;
+
+        if (!std::isfinite(io[0])) {
+            score += self->nanPenalty;
+        } else {
+            int pred = (io[0] >= 0.5) ? 1 : 0;
+
+            if (pred != truth) score += wrongCasePenalty;
+
+            // // miękki sygnał (pomaga w uczeniu, ale nie dominuje)
+            // score += softWeight * std::fabs(io[0] - (double)truth);
+        }
+
+        // nie psuj reszty bufora poza wejściem + stałe
+        score += unchangedPenalty(before, io, (size_t)startProtected, extraWriteWeight);
+    }
+
+    avgTime /= (double)self->inputs.size();
+    return {score, avgTime};
+}
+
+std::unique_ptr<FitnessFunction> FitnessBooleanK::clone() const {
+    return std::make_unique<FitnessBooleanK>(*this);
+}
+
+
+
+std::pair<double, double> FitnessArithSeq::operator()(
+    const GAsm* self, GAsmInterpreter& jit, const std::vector<uint8_t>& individual
+) {
+    jit.setProgram(individual);
+
+    double score = 0.0;
+    double avgTime = 0.0;
+
+    constexpr int outStart = 3;
+    constexpr int Tmax = 5;                   // MUSI pasować do generatora danych
+    constexpr long long SENT_INT = 0;
+
+    const double wrongElemWeight = 1.0;       // błąd wartości
+    const double extraOutputPenalty = 5.0;    // kara za wpisanie czegoś tam, gdzie ma być SENT
+    const double nanOutPenalty = 20.0;
+
+    for (int i = 0; i < (int)self->inputs.size(); ++i) {
+        std::vector<double> io = self->inputs[i];
+        const auto& target = self->targets[i];   // target.size() == Tmax
+
+        avgTime += (double)jit.run(io, self->maxProcessTime);
+
+        for (int j = 0; j < Tmax; ++j) {
+            double outv = io[outStart + j];
+            long long pred = truncToInt(outv);
+            long long truth = truncToInt(target[j]); // albo (long long)target[j] jeśli trzymasz całe
+
+            if (!isFinite(outv)) {
+                score += nanOutPenalty;
+                continue;
+            }
+            score += wrongElemWeight * (double)std::llabs(pred - truth);
+            // if (truth == SENT_INT) {
+            //     // tu nic nie powinno być "wydrukowane"
+            //     if (pred != SENT_INT) score += extraOutputPenalty;
+            // } else {
+            //     // element powinien być dokładny (na intach)
+            //     score += wrongElemWeight * (double)std::llabs(pred - truth);
+            // }
+        }
+    }
+
+    avgTime /= (double)self->inputs.size();
+    return {score, avgTime};
+}
+
+std::unique_ptr<FitnessFunction> FitnessArithSeq::clone() const {
+    return std::make_unique<FitnessArithSeq>(*this);
+}
 
 size_t TournamentSelection::operator()(const GAsm *self) {
     static thread_local std::mt19937 rng(std::random_device{}());

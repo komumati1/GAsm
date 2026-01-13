@@ -58,11 +58,11 @@ int main() {
 //    exampleFromFile();
 //    exampleFib();
 //    exampleJIT();
-    exampleCompile();
-    // CppvsGAsm();
-    // std::cout << "==============================================" << std::endl;
-    // InterpreterVsCompiler();
-    // std::cout << "==============================================" << std::endl;
+    // exampleCompile();
+    CppvsGAsm();
+    std::cout << "==============================================" << std::endl;
+    InterpreterVsCompiler();
+    std::cout << "==============================================" << std::endl;
     // fibEvolution();
     return 0;
 }
