@@ -74,3 +74,60 @@ def plot_hist_from_json(hist_json: dict):
 
     plt.tight_layout()
     plt.show()
+
+
+def plot_hist_from_json_log(hist_json: dict):
+    """
+    Wyświetla wykresy fitness z historii - w drugim rzędzie w skali logarytmicznej.
+    Pokazuje tylko average fitness i best fitness.
+    """
+    entries = hist_json.get("entries", [])
+    if not entries:
+        raise ValueError("Brak 'entries' w JSON albo lista jest pusta.")
+
+    def col(*keys):
+        # pozwala obsłużyć różne nazwy pól (camelCase i snake_case)
+        for k in keys:
+            if k in entries[0]:
+                return np.asarray([e[k] for e in entries], dtype=float)
+        raise KeyError(f"Nie znaleziono żadnego z kluczy: {keys}")
+
+    gen      = col("generation", "gen")
+    avg_fit  = col("avgFitness", "avg_fitness")
+    best_fit = col("bestFitness", "best_fitness")
+
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+
+    # normalne - skala liniowa
+    axes[0, 0].plot(gen, avg_fit, label="Average Fitness", marker="o")
+    axes[0, 0].set_xlabel("Generation"); axes[0, 0].set_ylabel("Fitness")
+    axes[0, 0].set_title("Average Fitness over Generations")
+    axes[0, 0].legend(); axes[0, 0].grid(True)
+
+    axes[0, 1].plot(gen, best_fit, label="Best Fitness", marker="s")
+    axes[0, 1].set_xlabel("Generation"); axes[0, 1].set_ylabel("Fitness")
+    axes[0, 1].set_title("Best Fitness over Generations")
+    axes[0, 1].legend(); axes[0, 1].grid(True)
+
+    # skala logarytmiczna - filtruj wartości <= 0, inf i NaN, oraz clip duże wartości
+    mask_avg = (avg_fit > 0) & np.isfinite(avg_fit)
+    mask_best = (best_fit > 0) & np.isfinite(best_fit)
+    
+    # Clip wartości do rozsądnych granic dla skali log (max 1e15)
+    avg_fit_clipped = np.clip(avg_fit[mask_avg], None, 1e15)
+    best_fit_clipped = np.clip(best_fit[mask_best], None, 1e15)
+    
+    axes[1, 0].plot(gen[mask_avg], avg_fit_clipped, label="Average Fitness (log scale)", marker="o")
+    axes[1, 0].set_xlabel("Generation"); axes[1, 0].set_ylabel("Fitness (log)")
+    axes[1, 0].set_title("Average Fitness over Generations (Log Scale)")
+    axes[1, 0].set_yscale('log')
+    axes[1, 0].legend(); axes[1, 0].grid(True, which="both", ls="-", alpha=0.3)
+
+    axes[1, 1].plot(gen[mask_best], best_fit_clipped, label="Best Fitness (log scale)", marker="s")
+    axes[1, 1].set_xlabel("Generation"); axes[1, 1].set_ylabel("Fitness (log)")
+    axes[1, 1].set_title("Best Fitness over Generations (Log Scale)")
+    axes[1, 1].set_yscale('log')
+    axes[1, 1].legend(); axes[1, 1].grid(True, which="both", ls="-", alpha=0.3)
+
+    plt.tight_layout()
+    plt.show()
